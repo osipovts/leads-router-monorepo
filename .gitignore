@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# pnpm
+.pnpm-store/
+
+# Build
+dist/
+build/
+coverage/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# NestJS
+.nest/
+
+# Temporary files
+tmp/
+temp/
