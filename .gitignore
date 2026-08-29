@@ -8,6 +8,8 @@ node_modules/
 dist/
 build/
 coverage/
+tsconfig.build.tsbuildinfo
+tsconfig.tsbuildinfo
 
 # Environment
 .env

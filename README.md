@@ -39,6 +39,8 @@
 ## Запуск
 
 ```bash
-pnpm --filter gateway start:dev # запуск gateway в dev-режиме
-pnpm --filter router start:dev # запуск router в dev-режиме
+pnpm start:dev # запуск всех сервисов сразу
+# или:
+pnpm --filter gateway start:dev # запуск gateway
+pnpm --filter router start:dev # запуск router
 ```

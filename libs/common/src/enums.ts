@@ -1,0 +1,12 @@
+export enum LayerEnum {
+  UNKNOWN = 'UNKNOWN',
+  DOMAIN = 'DOMAIN',
+  APPLICATION = 'APPLICATION',
+  INFRASTRUCTURE = 'INFRASTRUCTURE',
+}
+
+export enum ModuleEnum {
+  UNKNOWN = 'UNKNOWN',
+  COMMON = 'COMMON',
+  EXAMPLE = 'EXAMPLE',
+}

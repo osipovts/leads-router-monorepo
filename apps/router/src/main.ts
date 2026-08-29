@@ -1,11 +1,25 @@
-import { Logger } from '@nestjs/common';
+import { Logger, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 
+import type { AppConfigType } from './app.config';
+import { appConfig } from './app.config';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
-  await app.listen(process.env.PORT ?? 3000);
+
+  // API version
+  app.enableVersioning({ type: VersioningType.URI });
+  app.setGlobalPrefix('api');
+
+  // Global stuff
+
+  const config = app.get<AppConfigType>(appConfig.KEY);
+
+  // Start
+  await app.listen(config.port, config.host);
 }
 
-bootstrap().catch((e: unknown): void => { Logger.error(e); });
+bootstrap().catch((e: unknown): void => {
+  Logger.error(e);
+});

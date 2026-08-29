@@ -1,9 +1,8 @@
 {
   "compilerOptions": {
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
+    "module": "commonjs",
 
-    "target": "ES2023",
+    "target": "es6",
 
     "declaration": true,
     "sourceMap": true,
@@ -24,8 +23,6 @@
 
     "forceConsistentCasingInFileNames": true,
 
-    "skipLibCheck": true,
-
-    "types": ["node"]
+    "skipLibCheck": true
   }
 }
