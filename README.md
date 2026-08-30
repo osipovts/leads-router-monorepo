@@ -38,9 +38,26 @@
 
 ## Запуск
 
+Скопируйте репозиторий
+
 ```bash
-pnpm start:dev # запуск всех сервисов сразу
-# или:
-pnpm --filter gateway start:dev # запуск gateway
-pnpm --filter router start:dev # запуск router
+git clone https://github.com/osipovts/leads-router-monorepo.git
+```
+
+Скопируйте `env.example` в `.env`. Базовые `.env.example` уже содержат хорошие значения по умолчанию, но при
+необходимости отредактируйте .env
+
+```bash
+cd leads-router-monorepo
+cp .env.example .env # здесь лежат инфраструктурные переменные
+cp apps/gateway/.env.example apps/gateway/.env
+cp apps/router/.env.example apps/router/.env
+```
+
+Перед запуском замените `REDIS_PASSWORD` в корневом `.env` на длинный случайный пароль.
+
+Запустите
+
+```bash
+docker compose up
 ```

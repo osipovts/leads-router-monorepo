@@ -1,0 +1,53 @@
+services:
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command:
+      - sh
+      - -c
+      - exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"
+    environment:
+      REDIS_PASSWORD: '${REDIS_PASSWORD:?Set REDIS_PASSWORD in the root .env file}'
+    volumes:
+      - redis-data:/redis-data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli --no-auth-warning -a "$$REDIS_PASSWORD" ping | grep -q PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  gateway:
+    build:
+      target: gateway
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ./apps/gateway/.env
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: '${REDIS_PASSWORD:?Set REDIS_PASSWORD in the root .env file}'
+    ports:
+      - '${APP_PORT:-3000}:${APP_PORT:-3000}'
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  router:
+    build:
+      target: router
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ./apps/router/.env
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: '${REDIS_PASSWORD:?Set REDIS_PASSWORD in the root .env file}'
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis-data:

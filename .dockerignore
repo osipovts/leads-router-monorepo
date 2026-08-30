@@ -1,0 +1,8 @@
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+LICENSE
+README.md
+.markdownlint.json
+.prettierrc
+eslint.config.mjs
