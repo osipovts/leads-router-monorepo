@@ -61,3 +61,8 @@ cp apps/router/.env.example apps/router/.env
 ```bash
 docker compose up
 ```
+
+После запуска будут доступны:
+
+1. Swagger UI на [http://localhost:3000](http://localhost:4000)
+2. Bull Dashboard на [http://localhost:4000](http://localhost:4000)
