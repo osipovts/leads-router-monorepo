@@ -8,5 +8,5 @@ export enum LayerEnum {
 export enum ModuleEnum {
   UNKNOWN = 'UNKNOWN',
   COMMON = 'COMMON',
-  EXAMPLE = 'EXAMPLE',
+  LEADS = 'LEADS',
 }
