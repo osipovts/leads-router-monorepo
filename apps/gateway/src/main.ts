@@ -5,6 +5,8 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { AppConfigType } from './app.config';
 import { appConfig } from './app.config';
 import { AppModule } from './app.module';
+import type { SwaggerConfigType } from './common/infrastructure/swagger.config';
+import { swaggerConfig } from './common/infrastructure/swagger.config';
 import { HttpExceptionFilter } from './common/presentation/http/http-exception.filter';
 import { HttpLoggingInterceptor } from './common/presentation/http/http-logging.interceptor';
 import { HttpValidationPipe } from './common/presentation/http/http-validation.pipe';
@@ -21,28 +23,25 @@ async function bootstrap(): Promise<void> {
   app.useGlobalInterceptors(new HttpLoggingInterceptor());
   app.useGlobalPipes(new HttpValidationPipe());
 
-  const config = app.get<AppConfigType>(appConfig.KEY);
-
   // Swagger
-  if (config.swagger.isEnabled) {
-    const swaggerConfig = new DocumentBuilder().setVersion('1.0').build();
-    const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
-    SwaggerModule.setup(config.swagger.apiDocs, app, swaggerDocument, {
-      jsonDocumentUrl: config.swagger.apiJsonDocs,
+  const swagger = app.get<SwaggerConfigType>(swaggerConfig.KEY);
+  if (swagger.isEnabled) {
+    const swaggerBuilder = new DocumentBuilder().setVersion('1.0').build();
+    const swaggerDocument = SwaggerModule.createDocument(app, swaggerBuilder);
+    SwaggerModule.setup(swagger.apiDocs, app, swaggerDocument, {
+      jsonDocumentUrl: swagger.apiJsonDocs,
     });
   }
 
   // Start
-  await app.listen(config.port, config.host);
+  const { host, port } = app.get<AppConfigType>(appConfig.KEY);
+  await app.listen(port, host);
 
   // Post-start logs
-  const log = (msg: string): void => {
-    Logger.log(msg, 'Bootstrap');
-  };
   const appUrl = await app.getUrl();
-  log(`Application is listening on ${appUrl}`);
-  if (config.swagger.isEnabled) {
-    log(`Swagger documentation: ${appUrl}/${config.swagger.apiDocs}`);
+  Logger.log(`Application is listening on ${appUrl}`, 'Bootstrap');
+  if (swagger.isEnabled) {
+    Logger.log(`Swagger documentation: ${appUrl}/${swagger.apiDocs}`, 'Bootstrap');
   }
 }
 
