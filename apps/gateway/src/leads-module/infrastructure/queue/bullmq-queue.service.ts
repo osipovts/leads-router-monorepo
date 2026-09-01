@@ -1,10 +1,10 @@
-import { QUEUES } from '@leads-router/common';
+import { ChannelEnum, QUEUES, SendLeadJobPort } from '@leads-router/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { Queue } from 'bullmq';
 
 import { QueuePort } from '../../application/ports/queue.port';
-import { LeadDto } from '../../presentation/http/dto/lead.dto';
+import { LeadRequestDto } from '../../presentation/http/dto/lead-request.dto';
 import { QueueUnavailableException } from './queue-unavailable.exception';
 
 @Injectable()
@@ -13,10 +13,13 @@ export class BullmqQueueService implements QueuePort {
 
   constructor(@InjectQueue(QUEUES.LEADS.QUEUE_NAME) private readonly leadsQueue: Queue) {}
 
-  async createLead(lead: LeadDto, attempts: number, backoff: number): Promise<LeadDto> {
+  async sendLead(channel: ChannelEnum, lead: LeadRequestDto, attempts: number, backoff: number): Promise<void> {
     try {
-      await this.leadsQueue.add(QUEUES.LEADS.JOBS.CREATE, lead, { attempts, backoff });
-      return lead;
+      const jobName = QUEUES.LEADS.JOBS.SEND;
+      const job: SendLeadJobPort = { channel, lead };
+      const options = { attempts, backoff };
+
+      await this.leadsQueue.add(jobName, job, options);
     } catch (error: unknown) {
       this.logger.error({ lead, error });
       throw new QueueUnavailableException();

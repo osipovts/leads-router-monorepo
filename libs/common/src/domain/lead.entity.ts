@@ -1,7 +1,9 @@
-export interface LeadEntityInterface {
-  name: string;
-  contact: string;
-  message: string;
+export class LeadEntity {
+  constructor(
+    public readonly name: string,
+    public readonly contact: string,
+    public readonly message: string,
+  ) {}
 }
 
 export const LeadEntityValidation = Object.freeze({

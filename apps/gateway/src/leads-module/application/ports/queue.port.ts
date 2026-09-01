@@ -1,7 +1,7 @@
-import type { LeadEntityInterface } from '../../domain/lead.entity';
+import type { ChannelEnum, LeadEntity } from '@leads-router/common';
 
 export const QUEUE_PORT = 'QUEUE_PORT';
 
 export interface QueuePort {
-  createLead(lead: LeadEntityInterface, attempts: number, backoff: number): Promise<LeadEntityInterface>;
+  sendLead(channel: ChannelEnum, lead: LeadEntity, attempts: number, backoff: number): Promise<void>;
 }

@@ -1,12 +1,8 @@
+import { LeadEntityValidation } from '@leads-router/common';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, MaxLength, MinLength } from 'class-validator';
 
-import {
-  LeadEntityInterface,
-  LeadEntityValidation,
-} from '../../../domain/lead.entity';
-
-export class LeadDto implements LeadEntityInterface {
+export class LeadRequestDto {
   @ApiProperty({ ...LeadEntityValidation.name })
   @MaxLength(LeadEntityValidation.name.maxLength)
   @MinLength(LeadEntityValidation.name.minLength)

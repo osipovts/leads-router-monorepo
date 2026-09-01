@@ -2,7 +2,6 @@ import type { ExceptionInterface } from '@leads-router/common';
 import {
   ApplicationException,
   DomainException,
-  Exception,
   InfrastructureException,
   LayerEnum,
   ModuleEnum,
@@ -45,13 +44,6 @@ export function mapHttpException(exception: unknown): HttpExceptionMapping {
     };
   }
 
-  if (exception instanceof Exception) {
-    return {
-      status: HttpStatus.INTERNAL_SERVER_ERROR,
-      error: internalServerError(),
-    };
-  }
-
   return {
     status: HttpStatus.INTERNAL_SERVER_ERROR,
     error: internalServerError(),
@@ -65,11 +57,7 @@ function httpExceptionMessage(exception: HttpException): string {
     return response;
   }
 
-  if (
-    typeof response === 'object' &&
-    response !== null &&
-    'message' in response
-  ) {
+  if (typeof response === 'object' && response !== null && 'message' in response) {
     const message: unknown = response.message;
     return Array.isArray(message) ? message.join('; ') : String(message);
   }
