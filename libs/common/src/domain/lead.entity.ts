@@ -4,6 +4,10 @@ export class LeadEntity {
     public readonly contact: string,
     public readonly message: string,
   ) {}
+
+  toString(): string {
+    return `From: ${this.name} <${this.contact}>\nMessage: ${this.message}`;
+  }
 }
 
 export const LeadEntityValidation = Object.freeze({

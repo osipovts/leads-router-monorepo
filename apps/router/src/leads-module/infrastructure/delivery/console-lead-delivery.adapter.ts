@@ -9,7 +9,7 @@ export class ConsoleLeadDeliveryAdapter implements LeadDeliveryPort {
   readonly channel = ChannelEnum.CONSOLE;
   private readonly logger = new Logger(ConsoleLeadDeliveryAdapter.name);
 
-  send(lead: LeadEntity): Promise<void> {
+  async send(lead: LeadEntity): Promise<void> {
     this.logger.log(`Incoming lead: ${JSON.stringify(lead)}`);
     return Promise.resolve();
   }

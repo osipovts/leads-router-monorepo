@@ -162,6 +162,9 @@ importers:
       ioredis:
         specifier: ^6.0.0
         version: 6.0.0(supports-color@8.1.1)
+      node-telegram-bot-api:
+        specifier: ^2.1.0
+        version: 2.1.0
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -1861,6 +1864,10 @@ packages:
 
   node-releases@2.0.53:
     resolution: {integrity: sha512-D9UOmYG3UH1V+ENW56t5QXBwJw1YEY18ruVeus89Rw+SyIgjPkCO84bRzO3uNIYosJbNwiabWVn48o3uJLjxFQ==}
+    engines: {node: '>=18'}
+
+  node-telegram-bot-api@2.1.0:
+    resolution: {integrity: sha512-IXWp7Qzhwv21DqTw0g1CcppTb4TCzrQ949RVdtAmgiHAu3KbcRPyCAFXLaFAViqWDVx8GLZjnWiWJ7pWSj2PRA==}
     engines: {node: '>=18'}
 
   object-assign@4.1.1:
@@ -4091,6 +4098,8 @@ snapshots:
     optional: true
 
   node-releases@2.0.53: {}
+
+  node-telegram-bot-api@2.1.0: {}
 
   object-assign@4.1.1: {}
 

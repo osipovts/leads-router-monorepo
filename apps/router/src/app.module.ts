@@ -4,11 +4,12 @@ import { ConfigModule } from '@nestjs/config';
 
 import { appConfig } from './app.config';
 import { bullmqConfig, BullmqConfigType } from './common/infrastructure/bullmq.config';
+import { telegramConfig } from './leads-module/infrastructure/delivery/telegram.config';
 import { LeadsModule } from './leads-module/leads.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ load: [appConfig, bullmqConfig] }),
+    ConfigModule.forRoot({ load: [appConfig, bullmqConfig, telegramConfig] }),
     BullModule.forRootAsync({
       imports: [ConfigModule.forFeature(bullmqConfig)],
       inject: [bullmqConfig.KEY],
