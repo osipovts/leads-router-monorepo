@@ -3,5 +3,7 @@ packages:
   - libs/*
 allowBuilds:
   '@scarf/scarf': true
+  '@prisma/engines': true
   msgpackr-extract: true
+  prisma: true
   unrs-resolver: true

@@ -8,7 +8,7 @@ import tseslint from 'typescript-eslint';
 export default defineConfig(
   // Игнорируемые директории
   {
-    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**'],
+    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**', '**/prisma/generated/**'],
   },
 
   // Базовые JS правила
@@ -62,8 +62,11 @@ export default defineConfig(
 
     languageOptions: {
       parserOptions: {
-        // ESLint сам найдет tsconfig
-        projectService: true,
+        // ESLint сам найдет tsconfig; Prisma config находится вне src.
+        tsconfigRootDir: import.meta.dirname,
+        projectService: {
+          allowDefaultProject: ['apps/router/prisma.config.ts'],
+        },
       },
     },
 

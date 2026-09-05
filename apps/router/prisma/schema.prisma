@@ -1,0 +1,19 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/common/infrastructure/prisma/generated"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Lead {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(64)
+  contact   String   @db.VarChar(128)
+  message   String   @db.VarChar(2048)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("leads")
+}

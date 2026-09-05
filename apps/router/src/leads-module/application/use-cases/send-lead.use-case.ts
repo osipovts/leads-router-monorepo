@@ -18,6 +18,6 @@ export class SendLeadUseCase {
       throw new UnsupportedLeadChannelException(channel);
     }
 
-    await adapter.send(lead);
+    return adapter.send(lead);
   }
 }
