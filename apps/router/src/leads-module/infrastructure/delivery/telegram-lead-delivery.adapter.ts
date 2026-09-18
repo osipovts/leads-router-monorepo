@@ -16,7 +16,12 @@ export class TelegramLeadDeliveryAdapter implements LeadDeliveryPort {
   }
 
   async send(lead: LeadEntity): Promise<void> {
-    this.logger.log(`Sending lead from ${lead.name} <${lead.contact}> to telegram chat ${this.config.chatId}`);
-    await this.bot.api.sendMessage({ chat_id: this.config.chatId, text: lead.toString() });
+    try {
+      await this.bot.api.sendMessage({ chat_id: this.config.chatId, text: lead.toString() });
+      this.logger.log(`Lead from ${lead.name} <${lead.contact}> sent to telegram chat ${this.config.chatId}`);
+    } catch (error: unknown) {
+      this.logger.error(error);
+      throw error;
+    }
   }
 }
