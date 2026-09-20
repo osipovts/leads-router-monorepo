@@ -3,11 +3,7 @@ import { registerAs } from '@nestjs/config';
 import z from 'zod';
 
 const httpLeadDeliveryConfigSchema = z.object({
-  HTTP_LEAD_DELIVERY_ENABLED: z
-    .string()
-    .transform((value) => value.toLowerCase())
-    .pipe(z.enum(['true', 'false']))
-    .transform((value) => value === 'true'),
+  HTTP_LEAD_DELIVERY_ENABLED: z.stringbool(),
   HTTP_LEAD_DELIVERY_ENDPOINTS: z
     .string()
     .transform((value) => value.split(',').map((item) => item.trim()))

@@ -1,9 +1,9 @@
 import { ChannelEnum, LeadEntity } from '@leads-router/common';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { LeadDeliveryPort } from '../../../application/ports/lead-delivery.port';
+import type { LeadDeliveryPort } from '../../../application/ports/lead-delivery.port';
 import { HttpClient } from './http-client/http.client';
-import { httpLeadDeliveryConfig, HttpLeadDeliveryConfigType } from './http-lead-delivery.config';
+import { httpLeadDeliveryConfig, type HttpLeadDeliveryConfigType } from './http-lead-delivery.config';
 
 @Injectable()
 export class HttpLeadDeliveryAdapter implements LeadDeliveryPort {
@@ -15,9 +15,13 @@ export class HttpLeadDeliveryAdapter implements LeadDeliveryPort {
     private readonly client: HttpClient,
   ) {}
 
+  get enabled(): boolean {
+    return this.config.ENABLED;
+  }
+
   async send(lead: LeadEntity): Promise<void> {
-    const queue = this.config.ENDPOINTS.map((endpoint) => this.client.post(endpoint, lead));
-    const results = await Promise.allSettled(queue);
+    const jobs = this.config.ENDPOINTS.map((endpoint) => this.client.post(endpoint, lead));
+    const results = await Promise.allSettled(jobs);
 
     const fulfilled = results.filter((result) => result.status === 'fulfilled');
     const rejected = results.filter((result) => result.status === 'rejected');
