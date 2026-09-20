@@ -7,3 +7,7 @@ allowBuilds:
   msgpackr-extract: true
   prisma: true
   unrs-resolver: true
+  '@parcel/watcher': true
+  cpu-features: true
+  protobufjs: true
+  ssh2: true
