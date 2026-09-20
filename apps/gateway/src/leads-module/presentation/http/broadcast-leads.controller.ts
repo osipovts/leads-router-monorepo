@@ -1,3 +1,4 @@
+import { LeadEntity } from '@leads-router/common';
 import { Body, Controller, Post } from '@nestjs/common';
 import { ApiOperation } from '@nestjs/swagger';
 
@@ -18,7 +19,8 @@ export class BroadcastLeadsController {
   @ApiValidationErrorResponse()
   @ApiQueueUnavailableErrorResponse()
   async post(@Body() req: LeadRequestDto): Promise<SuccessHttpResponseDto<LeadRequestDto>> {
-    await this.broadcastLeadUseCase.execute(req);
+    const lead = new LeadEntity(req.name, req.contact, req.message);
+    await this.broadcastLeadUseCase.execute(lead);
     return SuccessHttpResponseDto.create(req);
   }
 }
