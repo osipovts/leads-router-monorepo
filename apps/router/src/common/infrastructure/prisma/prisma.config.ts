@@ -1,6 +1,6 @@
 import type { ConfigType } from '@nestjs/config';
 import { registerAs } from '@nestjs/config';
-import { z } from 'zod';
+import z from 'zod';
 
 const prismaConfigSchema = z.object({
   DATABASE_URL: z
@@ -11,7 +11,9 @@ const prismaConfigSchema = z.object({
     ),
 });
 
-export const prismaConfig = registerAs('prisma', () => {
+const PRISMA_CONFIG = 'PRISMA_CONFIG';
+
+export const prismaConfig = registerAs(PRISMA_CONFIG, () => {
   const env = prismaConfigSchema.parse(process.env);
 
   return { databaseUrl: env.DATABASE_URL };

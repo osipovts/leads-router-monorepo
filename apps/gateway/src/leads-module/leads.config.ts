@@ -13,12 +13,8 @@ export const leadsQueueConfig = registerAs(LEADS_QUEUE_CONFIG, () => {
   const env = leadsConfigSchema.parse(process.env);
 
   return {
-    leads: {
-      queue: {
-        attempts: env.LEADS_QUEUE_ATTEMPTS,
-        backoff: env.LEADS_QUEUE_BACKOFF,
-      },
-    },
+    attempts: env.LEADS_QUEUE_ATTEMPTS,
+    backoff: env.LEADS_QUEUE_BACKOFF,
   };
 });
 

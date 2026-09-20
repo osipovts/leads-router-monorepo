@@ -14,7 +14,7 @@ export class BroadcastLeadUseCase {
   ) {}
 
   async execute(lead: LeadEntity): Promise<void> {
-    const { attempts, backoff } = this.config.leads.queue;
+    const { attempts, backoff } = this.config;
     const allChannels = Object.values(ChannelEnum);
 
     this.logger.log(`Broadcasting lead from ${lead.name} <${lead.contact}> to ${allChannels.join(', ')}`);

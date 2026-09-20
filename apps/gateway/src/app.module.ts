@@ -5,12 +5,11 @@ import { ConfigModule } from '@nestjs/config';
 
 import { appConfig } from './app.config';
 import { swaggerConfig } from './common/infrastructure/swagger.config';
-import { leadsQueueConfig } from './leads-module/leads.config';
 import { LeadsModule } from './leads-module/leads.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ load: [appConfig, swaggerConfig, bullmqConfig, leadsQueueConfig] }),
+    ConfigModule.forRoot({ load: [appConfig, swaggerConfig] }),
     BullModule.forRootAsync({
       imports: [ConfigModule.forFeature(bullmqConfig)],
       inject: [bullmqConfig.KEY],

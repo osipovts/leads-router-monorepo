@@ -9,7 +9,7 @@ import { LeadsModule } from './leads-module/leads.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ load: [appConfig, bullmqConfig] }),
+    ConfigModule.forRoot({ load: [appConfig] }),
     PrismaModule,
     BullModule.forRootAsync({
       imports: [ConfigModule.forFeature(bullmqConfig)],
