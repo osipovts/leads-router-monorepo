@@ -34,11 +34,7 @@ import { LeadsProcessor } from './presentation/queue/leads.processor';
         HttpLeadDeliveryAdapter,
       ],
       useFactory: (...adapters: LeadDeliveryPort[]): ReadonlyMap<ChannelEnum, LeadDeliveryPort> =>
-        new Map(
-          adapters
-            .filter((adapter) => adapter.enabled)
-            .map((adapter) => [adapter.channel, adapter] as const),
-        ),
+        new Map(adapters.map((adapter) => [adapter.channel, adapter] as const)),
     },
     SendLeadUseCase,
     LeadsProcessor,
