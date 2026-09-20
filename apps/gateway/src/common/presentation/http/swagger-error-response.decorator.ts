@@ -3,6 +3,7 @@ import {
   ApiBadRequestResponse,
   ApiExtraModels,
   ApiServiceUnavailableResponse,
+  ApiTooManyRequestsResponse,
   getSchemaPath,
 } from '@nestjs/swagger';
 
@@ -37,6 +38,34 @@ export function ApiValidationErrorResponse(): MethodDecorator {
                   module: 'COMMON',
                   error: 'BadRequestException',
                   message: 'name must be longer than or equal to 2 characters',
+                },
+              },
+            },
+          },
+        },
+      },
+    }),
+  );
+}
+
+export function ApiTooManyRequestsErrorResponse(): MethodDecorator {
+  return applyDecorators(
+    ApiExtraModels(ErrorHttpResponseDto, ErrorDto),
+    ApiTooManyRequestsResponse({
+      description: 'Превышен лимит запросов с этого IP',
+      content: {
+        'application/json': {
+          schema: errorResponseSchema,
+          examples: {
+            tooManyRequests: {
+              summary: 'Слишком много запросов за окно TTL',
+              value: {
+                success: false,
+                error: {
+                  layer: 'INFRASTRUCTURE',
+                  module: 'COMMON',
+                  error: 'ThrottlerException',
+                  message: 'ThrottlerException: Too Many Requests',
                 },
               },
             },
