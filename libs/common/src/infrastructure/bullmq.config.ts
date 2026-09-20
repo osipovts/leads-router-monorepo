@@ -8,7 +8,7 @@ const bullmqConfigSchema = z.object({
   BULLMQ_CONNECTION_PASSWORD: z.string().optional(),
 });
 
-export const BULLMQ_CONFIG = 'BULLMQ_CONFIG';
+const BULLMQ_CONFIG = 'BULLMQ_CONFIG';
 
 export const bullmqConfig = registerAs(BULLMQ_CONFIG, () => {
   const env = bullmqConfigSchema.parse(process.env);

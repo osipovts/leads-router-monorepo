@@ -2,9 +2,9 @@ import { ChannelEnum, LeadEntity } from '@leads-router/common';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import type { LeadDeliveryPort } from '../../../application/ports/lead-delivery.port';
-import { HttpLeadDeliveryException } from './http-lead-delivery.exception';
 import { HttpClient } from './http-client/http.client';
 import { httpLeadDeliveryConfig, type HttpLeadDeliveryConfigType } from './http-lead-delivery.config';
+import { HttpLeadDeliveryException } from './http-lead-delivery.exception';
 
 @Injectable()
 export class HttpLeadDeliveryAdapter implements LeadDeliveryPort {

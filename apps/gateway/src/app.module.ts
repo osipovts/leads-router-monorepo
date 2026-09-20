@@ -1,9 +1,9 @@
+import { bullmqConfig, type BullmqConfigType } from '@leads-router/common';
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
 import { appConfig } from './app.config';
-import { bullmqConfig, BullmqConfigType } from './common/infrastructure/bullmq.config';
 import { swaggerConfig } from './common/infrastructure/swagger.config';
 import { leadsQueueConfig } from './leads-module/leads.config';
 import { LeadsModule } from './leads-module/leads.module';
