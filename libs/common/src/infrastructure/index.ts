@@ -1,2 +1,2 @@
 export * from './bullmq.config';
-export * from './send-lead-job.port';
+export * from './send-lead-job';

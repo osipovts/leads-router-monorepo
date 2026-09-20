@@ -1,4 +1,4 @@
-import type { SendLeadJobPort } from '../infrastructure';
+import type { SendLeadJob } from '../infrastructure';
 
 export class LeadEntity {
   constructor(
@@ -11,7 +11,7 @@ export class LeadEntity {
     return `From: ${this.name} <${this.contact}>\nMessage: ${this.message}`;
   }
 
-  static fromJob({ lead }: SendLeadJobPort): LeadEntity {
+  static fromJob({ lead }: SendLeadJob): LeadEntity {
     const { name, contact, message } = lead;
     return new LeadEntity(name, contact, message);
   }

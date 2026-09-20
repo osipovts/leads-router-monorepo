@@ -1,4 +1,4 @@
-import { ChannelEnum, LeadEntity, QUEUES, SendLeadJobPort } from '@leads-router/common';
+import { ChannelEnum, LeadEntity, QUEUES, SendLeadJob } from '@leads-router/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { Queue } from 'bullmq';
@@ -15,7 +15,7 @@ export class BullmqQueueService implements QueuePort {
   async sendLead(channel: ChannelEnum, lead: LeadEntity, attempts: number, backoff: number): Promise<void> {
     try {
       const jobName = QUEUES.LEADS.JOBS.SEND;
-      const job: SendLeadJobPort = { channel, lead };
+      const job: SendLeadJob = { channel, lead };
       const options = { attempts, backoff };
 
       await this.leadsQueue.add(jobName, job, options);

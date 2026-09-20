@@ -1,4 +1,4 @@
-import { LeadEntity, QUEUES, SendLeadJobPort } from '@leads-router/common';
+import { LeadEntity, QUEUES, SendLeadJob } from '@leads-router/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import type { Job } from 'bullmq';
 
@@ -10,7 +10,7 @@ export class LeadsProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<SendLeadJobPort>): Promise<void> {
+  async process(job: Job<SendLeadJob>): Promise<void> {
     const lead = LeadEntity.fromJob(job.data);
 
     switch (job.name) {
