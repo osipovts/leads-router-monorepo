@@ -1,6 +1,6 @@
-import { DomainException, ModuleEnum } from '@leads-router/common';
+import { InfrastructureException, ModuleEnum } from '@leads-router/common';
 
-export class DatabaseUnavailableException extends DomainException {
+export class DatabaseUnavailableException extends InfrastructureException {
   readonly module = ModuleEnum.COMMON;
   readonly cause: unknown;
 

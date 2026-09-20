@@ -27,8 +27,8 @@ export function mapHttpException(exception: unknown): HttpExceptionMapping {
 
   if (exception instanceof InfrastructureException) {
     return {
-      status: HttpStatus.INTERNAL_SERVER_ERROR,
-      error: internalServerError(),
+      status: HttpStatus.SERVICE_UNAVAILABLE,
+      error: exception.toJSON(),
     };
   }
 

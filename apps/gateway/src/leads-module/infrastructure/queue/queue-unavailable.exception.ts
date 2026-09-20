@@ -1,9 +1,9 @@
-import { DomainException, ModuleEnum } from '@leads-router/common';
+import { InfrastructureException, ModuleEnum } from '@leads-router/common';
 
-export class QueueUnavailableException extends DomainException {
+export class QueueUnavailableException extends InfrastructureException {
   public readonly module = ModuleEnum.LEADS;
 
   override get message(): string {
-    return `Queue service temporarly unavailable`;
+    return `Queue service is temporarily unavailable`;
   }
 }

@@ -61,10 +61,10 @@ export function ApiQueueUnavailableErrorResponse(): MethodDecorator {
               value: {
                 success: false,
                 error: {
-                  layer: 'DOMAIN',
+                  layer: 'INFRASTRUCTURE',
                   module: 'LEADS',
                   error: 'QueueUnavailableException',
-                  message: 'Queue service temporarly unavailable',
+                  message: 'Queue service is temporarily unavailable',
                 },
               },
             },
