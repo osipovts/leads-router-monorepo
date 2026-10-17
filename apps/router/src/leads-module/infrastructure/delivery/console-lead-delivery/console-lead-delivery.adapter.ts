@@ -17,7 +17,7 @@ export class ConsoleLeadDeliveryAdapter implements LeadDeliveryPort {
   }
 
   async send(lead: LeadEntity): Promise<void> {
-    this.logger.log(`Incoming lead: ${JSON.stringify(lead)}`);
+    this.logger.log(`Incoming lead: ${lead.toString()}`);
     return Promise.resolve();
   }
 }
