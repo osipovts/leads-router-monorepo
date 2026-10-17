@@ -1,4 +1,4 @@
-import { ChannelEnum, LeadEntity, QUEUES, SendLeadJob } from '@leads-router/common';
+import { ChannelEnum, type LeadEntity, QUEUES, type SendLeadJob } from '@leads-router/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { Queue } from 'bullmq';

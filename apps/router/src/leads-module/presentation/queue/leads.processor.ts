@@ -1,4 +1,4 @@
-import { LeadEntity, QUEUES, SendLeadJob } from '@leads-router/common';
+import { LeadEntity, QUEUES, type SendLeadJob } from '@leads-router/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import type { Job } from 'bullmq';
 

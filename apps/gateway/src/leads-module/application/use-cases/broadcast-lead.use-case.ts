@@ -1,4 +1,4 @@
-import { ChannelEnum, LeadEntity } from '@leads-router/common';
+import { ChannelEnum, type LeadEntity } from '@leads-router/common';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { leadsQueueConfig, LeadsQueueConfigType } from '../../leads.config';
