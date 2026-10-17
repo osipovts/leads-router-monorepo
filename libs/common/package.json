@@ -5,11 +5,36 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "start:dev": "tsc -p tsconfig.json --watch"
+    "build": "tsc -p tsconfig.build.json",
+    "start:dev": "tsc -p tsconfig.build.json --watch",
+    "test": "jest"
   },
   "dependencies": {
     "@nestjs/config": "^12.0.0",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.4.0",
+    "jest": "^30.5.2",
+    "ts-jest": "^29.4.12",
+    "typescript": "^6.0.3"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node"
   }
 }

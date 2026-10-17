@@ -8,7 +8,7 @@
     "lint:fix": "eslint . --fix",
     "start:dev": "pnpm --parallel --filter @leads-router/common --filter @leads-router/gateway --filter @leads-router/router start:dev",
     "start:frontend": "pnpm --filter @leads-router/frontend start:dev",
-    "test:unit": "pnpm --filter @leads-router/router test",
+    "test:unit": "pnpm --filter @leads-router/common --filter @leads-router/gateway --filter @leads-router/router test",
     "test:e2e": "pnpm --filter @leads-router/e2e test"
   },
   "devDependencies": {
