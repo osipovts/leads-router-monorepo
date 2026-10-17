@@ -4,6 +4,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { LeadDeliveryPort } from '../../../application/ports/lead-delivery.port';
 import { TelegramClient } from './telegram-client/telegram.client';
 import { telegramLeadDeliveryConfig, type TelegramLeadDeliveryConfigType } from './telegram-lead-delivery.config';
+import { TelegramLeadDeliveryException } from './telegram-lead-delivery.exception';
 
 @Injectable()
 export class TelegramLeadDeliveryAdapter implements LeadDeliveryPort {
@@ -20,7 +21,12 @@ export class TelegramLeadDeliveryAdapter implements LeadDeliveryPort {
   }
 
   async send(lead: LeadEntity): Promise<void> {
-    await this.client.sendMessage(this.config.CHAT_ID, lead.toString());
+    try {
+      await this.client.sendMessage(this.config.CHAT_ID, lead.toString());
+    } catch (error: unknown) {
+      throw new TelegramLeadDeliveryException(error);
+    }
+
     this.logger.log(`Lead from ${lead.name} <${lead.contact}> sent to telegram chat ${this.config.CHAT_ID}`);
   }
 }

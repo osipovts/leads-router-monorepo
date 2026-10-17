@@ -4,6 +4,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { LeadDeliveryPort } from '../../../application/ports/lead-delivery.port';
 import { DatabaseClient } from './database-client/database.client';
 import { databaseLeadDeliveryConfig, type DatabaseLeadDeliveryConfigType } from './database-lead-delivery.config';
+import { DatabaseLeadDeliveryException } from './database-lead-delivery.exception';
 
 @Injectable()
 export class DatabaseLeadDeliveryAdapter implements LeadDeliveryPort {
@@ -21,6 +22,11 @@ export class DatabaseLeadDeliveryAdapter implements LeadDeliveryPort {
 
   async send(lead: LeadEntity): Promise<void> {
     this.logger.log(`Saving lead from ${lead.name} <${lead.contact}> to postgres`);
-    await this.client.saveLead(lead);
+
+    try {
+      await this.client.saveLead(lead);
+    } catch (error: unknown) {
+      throw new DatabaseLeadDeliveryException(error);
+    }
   }
 }
