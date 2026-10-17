@@ -110,6 +110,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     process.env.EMAIL_CLIENT_SECURE = 'false';
     process.env.EMAIL_CLIENT_USER = 'leads@test.local';
     process.env.EMAIL_CLIENT_PASSWORD = 'test-password';
+    process.env.EMAIL_CLIENT_FROM = 'leads@test.local';
 
     // Транспорт node-telegram-bot-api запоминает globalThis.fetch в конструкторе,
     // поэтому синк должен быть установлен до создания router-приложения

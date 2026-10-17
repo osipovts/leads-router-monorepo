@@ -15,7 +15,7 @@ export class EmailClient {
       secure: config.secure,
       auth: { user: config.user, pass: config.password },
     });
-    this.from = config.user;
+    this.from = config.from;
   }
 
   async sendMail(to: string, subject: string, text: string): Promise<void> {
