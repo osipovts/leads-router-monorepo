@@ -1,7 +1,7 @@
 import type { ChannelEnum } from '../application';
-import type { LeadEntity } from '../domain';
+import type { LeadPayload } from '../domain';
 
 export interface SendLeadJob {
   readonly channel: ChannelEnum;
-  readonly lead: LeadEntity;
+  readonly lead: LeadPayload;
 }
