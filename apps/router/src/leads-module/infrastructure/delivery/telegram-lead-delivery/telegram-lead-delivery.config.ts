@@ -1,3 +1,4 @@
+import { isDeliveryEnabled } from '@leads-router/common';
 import type { ConfigType } from '@nestjs/config';
 import { registerAs } from '@nestjs/config';
 import z from 'zod';
@@ -10,6 +11,10 @@ const telegramLeadDeliveryConfigSchema = z.object({
 const TELEGRAM_LEAD_DELIVERY_CONFIG = 'TELEGRAM_LEAD_DELIVERY_CONFIG';
 
 export const telegramLeadDeliveryConfig = registerAs(TELEGRAM_LEAD_DELIVERY_CONFIG, () => {
+  if (!isDeliveryEnabled(process.env.TELEGRAM_LEAD_DELIVERY_ENABLED)) {
+    return { ENABLED: false, CHAT_ID: '' };
+  }
+
   const env = telegramLeadDeliveryConfigSchema.parse(process.env);
 
   return {

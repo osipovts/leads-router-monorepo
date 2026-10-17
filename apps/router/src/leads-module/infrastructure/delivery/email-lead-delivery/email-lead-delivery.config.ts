@@ -1,3 +1,4 @@
+import { isDeliveryEnabled } from '@leads-router/common';
 import type { ConfigType } from '@nestjs/config';
 import { registerAs } from '@nestjs/config';
 import z from 'zod';
@@ -10,6 +11,10 @@ const emailLeadDeliveryConfigSchema = z.object({
 const EMAIL_LEAD_DELIVERY_CONFIG = 'EMAIL_LEAD_DELIVERY_CONFIG';
 
 export const emailLeadDeliveryConfig = registerAs(EMAIL_LEAD_DELIVERY_CONFIG, () => {
+  if (!isDeliveryEnabled(process.env.EMAIL_LEAD_DELIVERY_ENABLED)) {
+    return { ENABLED: false, TO: '' };
+  }
+
   const env = emailLeadDeliveryConfigSchema.parse(process.env);
 
   return {

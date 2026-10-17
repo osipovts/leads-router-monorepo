@@ -1,3 +1,4 @@
+import { isDeliveryEnabled } from '@leads-router/common';
 import type { ConfigType } from '@nestjs/config';
 import { registerAs } from '@nestjs/config';
 import z from 'zod';
@@ -13,6 +14,10 @@ const httpLeadDeliveryConfigSchema = z.object({
 const HTTP_LEAD_DELIVERY_CONFIG = 'HTTP_LEAD_DELIVERY_CONFIG';
 
 export const httpLeadDeliveryConfig = registerAs(HTTP_LEAD_DELIVERY_CONFIG, () => {
+  if (!isDeliveryEnabled(process.env.HTTP_LEAD_DELIVERY_ENABLED)) {
+    return { ENABLED: false, ENDPOINTS: [] };
+  }
+
   const env = httpLeadDeliveryConfigSchema.parse(process.env);
 
   return {

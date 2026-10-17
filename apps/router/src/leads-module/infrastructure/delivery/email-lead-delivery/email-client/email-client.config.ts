@@ -1,3 +1,4 @@
+import { isDeliveryEnabled } from '@leads-router/common';
 import type { ConfigType } from '@nestjs/config';
 import { registerAs } from '@nestjs/config';
 import z from 'zod';
@@ -13,6 +14,12 @@ const emailClientConfigSchema = z.object({
 const EMAIL_CLIENT_CONFIG = 'EMAIL_CLIENT_CONFIG';
 
 export const emailClientConfig = registerAs(EMAIL_CLIENT_CONFIG, () => {
+  // Клиент принадлежит email-адаптеру: пока доставка выключена, SMTP-переменные не валидируются
+  // и могут не задаваться в env (см. контракт isDeliveryEnabled)
+  if (!isDeliveryEnabled(process.env.EMAIL_LEAD_DELIVERY_ENABLED)) {
+    return { host: '', port: 0, secure: false, user: '', password: '' };
+  }
+
   const env = emailClientConfigSchema.parse(process.env);
 
   return {

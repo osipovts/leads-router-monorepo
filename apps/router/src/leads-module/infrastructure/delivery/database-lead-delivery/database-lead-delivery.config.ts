@@ -1,3 +1,4 @@
+import { isDeliveryEnabled } from '@leads-router/common';
 import type { ConfigType } from '@nestjs/config';
 import { registerAs } from '@nestjs/config';
 import z from 'zod';
@@ -9,6 +10,10 @@ const databaseLeadDeliveryConfigSchema = z.object({
 const DATABASE_LEAD_DELIVERY_CONFIG = 'DATABASE_LEAD_DELIVERY_CONFIG';
 
 export const databaseLeadDeliveryConfig = registerAs(DATABASE_LEAD_DELIVERY_CONFIG, () => {
+  if (!isDeliveryEnabled(process.env.DATABASE_LEAD_DELIVERY_ENABLED)) {
+    return { ENABLED: false };
+  }
+
   const env = databaseLeadDeliveryConfigSchema.parse(process.env);
 
   return {
