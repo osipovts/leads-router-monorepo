@@ -1,6 +1,6 @@
 import { LeadEntity } from '@leads-router/common';
 import { Body, Controller, Post } from '@nestjs/common';
-import { ApiOperation } from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiExtraModels, ApiOperation, getSchemaPath } from '@nestjs/swagger';
 
 import { SuccessHttpResponseDto } from '../../../common/presentation/http/http-response.dto';
 import {
@@ -18,6 +18,16 @@ export class BroadcastLeadsController {
 
   @Post()
   @ApiOperation({ summary: 'Рассылает лид по всем доступным каналам' })
+  @ApiExtraModels(SuccessHttpResponseDto, LeadResponseDto)
+  @ApiCreatedResponse({
+    description: 'Лид принят в очередь доставки по всем каналам',
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(SuccessHttpResponseDto) },
+        { properties: { data: { $ref: getSchemaPath(LeadResponseDto) } } },
+      ],
+    },
+  })
   @ApiValidationErrorResponse()
   @ApiEnqueueFailedErrorResponse()
   @ApiTooManyRequestsErrorResponse()

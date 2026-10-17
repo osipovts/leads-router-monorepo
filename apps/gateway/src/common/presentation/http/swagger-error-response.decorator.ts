@@ -37,7 +37,7 @@ export function ApiValidationErrorResponse(): MethodDecorator {
                   layer: 'PRESENTATION',
                   module: 'COMMON',
                   error: 'BadRequestException',
-                  message: 'name must be longer than or equal to 2 characters',
+                  message: 'name must be longer than or equal to 1 characters',
                 },
               },
             },

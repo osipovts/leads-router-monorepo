@@ -13,6 +13,7 @@ import { type INestApplication, VersioningType } from '../../gateway/node_module
 // которым бутстрапится само приложение: две копии Nest в одном процессе
 // сломали бы DI-контейнеры и instanceof-проверки
 import { NestFactory } from '../../gateway/node_modules/@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '../../gateway/node_modules/@nestjs/swagger';
 import { AppModule as GatewayAppModule } from '../../gateway/src/app.module';
 import { HttpExceptionFilter } from '../../gateway/src/common/presentation/http/http-exception.filter';
 import { HttpLoggingInterceptor } from '../../gateway/src/common/presentation/http/http-logging.interceptor';
@@ -178,6 +179,26 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
 
   // Gateway tests
   describe('gateway', () => {
+    it('documents the successful response in the generated OpenAPI', (): void => {
+      const document = SwaggerModule.createDocument(gatewayApp, new DocumentBuilder().setVersion('1.0').build());
+
+      expect(document.paths['/api/v1/leads'].post?.responses['201']).toMatchObject({
+        content: {
+          'application/json': {
+            schema: {
+              allOf: [
+                { $ref: '#/components/schemas/SuccessHttpResponseDto' },
+                { properties: { data: { $ref: '#/components/schemas/LeadResponseDto' } } },
+              ],
+            },
+          },
+        },
+      });
+      expect(document.components?.schemas?.LeadResponseDto).toMatchObject({
+        required: ['id', 'name', 'contact', 'message'],
+      });
+    });
+
     it('accepts a valid lead, generates its id and responds with echoed data', async () => {
       const { lead, response } = await postLead('gateway-valid');
 
