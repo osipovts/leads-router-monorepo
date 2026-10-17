@@ -59,11 +59,13 @@ export class LeadEntity {
       return 'must be a string';
     }
 
-    if (limits.minLength !== undefined && value.length < limits.minLength) {
+    const length = Array.from(value).length;
+
+    if (limits.minLength !== undefined && length < limits.minLength) {
       return `must be at least ${limits.minLength.toString()} character(s) long`;
     }
 
-    if (limits.maxLength !== undefined && value.length > limits.maxLength) {
+    if (limits.maxLength !== undefined && length > limits.maxLength) {
       return `must be at most ${limits.maxLength.toString()} character(s) long`;
     }
 

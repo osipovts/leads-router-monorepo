@@ -1,6 +1,8 @@
 import { LeadEntityValidation } from '@leads-router/common';
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsString, IsUUID, Matches, MinLength } from 'class-validator';
+
+import { MaxCodePointLength } from '../../../../common/presentation/http/max-code-point-length.decorator';
 
 export class LeadRequestDto {
   @ApiProperty({
@@ -14,21 +16,21 @@ export class LeadRequestDto {
   declare id: string | undefined;
   @ApiProperty({ ...LeadEntityValidation.name, pattern: LeadEntityValidation.name.pattern.source })
   @Matches(LeadEntityValidation.name.pattern, { message: 'name must not contain control characters' })
-  @MaxLength(LeadEntityValidation.name.maxLength)
+  @MaxCodePointLength(LeadEntityValidation.name.maxLength)
   @MinLength(LeadEntityValidation.name.minLength)
   @IsString()
   declare name: string;
 
   @ApiProperty({ ...LeadEntityValidation.contact, pattern: LeadEntityValidation.contact.pattern.source })
   @Matches(LeadEntityValidation.contact.pattern, { message: 'contact must not contain control characters' })
-  @MaxLength(LeadEntityValidation.contact.maxLength)
+  @MaxCodePointLength(LeadEntityValidation.contact.maxLength)
   @MinLength(LeadEntityValidation.contact.minLength)
   @IsString()
   declare contact: string;
 
   @ApiProperty({ ...LeadEntityValidation.message, pattern: LeadEntityValidation.message.pattern.source })
   @Matches(LeadEntityValidation.message.pattern, { message: 'message must not contain control characters' })
-  @MaxLength(LeadEntityValidation.message.maxLength)
+  @MaxCodePointLength(LeadEntityValidation.message.maxLength)
   @MinLength(LeadEntityValidation.message.minLength)
   @IsString()
   declare message: string;

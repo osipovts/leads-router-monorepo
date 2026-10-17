@@ -198,6 +198,27 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       expect(body.success).toBe(false);
       expect(body.error.error).toBe('BadRequestException');
     });
+
+    it.each(['😀'.repeat(64), '✈️'.repeat(32)])(
+      'accepts and stores a name containing 64 Unicode code points: %s',
+      async (name): Promise<void> => {
+        const lead = LeadEntity.generate(name, 'unicode@test.local', '😀'.repeat(2048));
+
+        await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
+
+        const saved = await waitFor(() => prisma.lead.findUnique({ where: { id: lead.id } }));
+        expect(saved).toMatchObject({ name: lead.name, message: lead.message });
+      },
+    );
+
+    it.each(['😀'.repeat(65), '✈️'.repeat(33)])(
+      'rejects a name exceeding 64 Unicode code points: %s',
+      async (name): Promise<void> => {
+        const lead = { name, contact: 'unicode@test.local', message: 'hello' };
+
+        await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(400);
+      },
+    );
   });
 
   // Console delivery adapter tests

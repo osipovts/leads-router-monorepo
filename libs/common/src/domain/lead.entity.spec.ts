@@ -58,6 +58,20 @@ describe('LeadEntity', () => {
       expect(() => LeadEntity.from(atLimits)).not.toThrow();
     });
 
+    it.each(['😀', '𐐀'])('counts Unicode code points for %s', (character): void => {
+      const atLimits = {
+        ...VALID,
+        name: character.repeat(64),
+        contact: character.repeat(128),
+        message: character.repeat(2048),
+      };
+
+      expect(() => LeadEntity.from(atLimits)).not.toThrow();
+      expect(violationsOf({ name: character.repeat(65) }).name).toBe('must be at most 64 character(s) long');
+      expect(violationsOf({ contact: character.repeat(129) }).contact).toBe('must be at most 128 character(s) long');
+      expect(violationsOf({ message: character.repeat(2049) }).message).toBe('must be at most 2048 character(s) long');
+    });
+
     it('generates a UUID id', () => {
       const lead = LeadEntity.generate(VALID.name, VALID.contact, VALID.message);
 
