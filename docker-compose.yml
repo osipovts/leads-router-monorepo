@@ -30,9 +30,9 @@ services:
     environment:
       REDIS_PASSWORD: '${REDIS_PASSWORD:?Set REDIS_PASSWORD in the root .env file}'
     volumes:
-      - redis-data:/redis-data
+      - redis-data:/data
     healthcheck:
-      test: ['CMD', 'redis-cli', '-a', '$$REDIS_PASSWORD', 'ping']
+      test: ['CMD-SHELL', 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli -e -p "$$REDIS_PORT" ping']
       interval: 5s
       timeout: 3s
       retries: 3
