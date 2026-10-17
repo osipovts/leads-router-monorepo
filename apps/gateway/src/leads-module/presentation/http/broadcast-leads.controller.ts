@@ -10,6 +10,7 @@ import {
 } from '../../../common/presentation/http/swagger-error-response.decorator';
 import { BroadcastLeadUseCase } from '../../application/use-cases/broadcast-lead.use-case';
 import { LeadRequestDto } from './dto/lead-request.dto';
+import { LeadResponseDto } from './dto/lead-response.dto';
 
 @Controller({ path: 'leads', version: '1' })
 export class BroadcastLeadsController {
@@ -20,9 +21,13 @@ export class BroadcastLeadsController {
   @ApiValidationErrorResponse()
   @ApiEnqueueFailedErrorResponse()
   @ApiTooManyRequestsErrorResponse()
-  async post(@Body() req: LeadRequestDto): Promise<SuccessHttpResponseDto<LeadRequestDto>> {
-    const lead = new LeadEntity(req.name, req.contact, req.message);
+  async post(@Body() req: LeadRequestDto): Promise<SuccessHttpResponseDto<LeadResponseDto>> {
+    const lead =
+      req.id === undefined
+        ? LeadEntity.generate(req.name, req.contact, req.message)
+        : new LeadEntity(req.id, req.name, req.contact, req.message);
+
     await this.broadcastLeadUseCase.execute(lead);
-    return SuccessHttpResponseDto.create(req);
+    return SuccessHttpResponseDto.create(LeadResponseDto.from(lead));
   }
 }
