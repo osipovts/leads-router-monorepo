@@ -4,11 +4,15 @@ import { join } from 'node:path';
 
 import { ChannelEnum, LeadEntity, QUEUES, type SendLeadJob } from '@leads-router/common';
 import { getQueueToken } from '@nestjs/bullmq';
-import type { Queue } from 'bullmq';
+import type { Job, Queue } from 'bullmq';
 import request from 'supertest';
 import { GenericContainer, type StartedTestContainer, Wait } from 'testcontainers';
 
-import { type INestApplication, VersioningType } from '../../gateway/node_modules/@nestjs/common';
+import {
+  type INestApplication,
+  Logger as GatewayLogger,
+  VersioningType,
+} from '../../gateway/node_modules/@nestjs/common';
 // Импорт из дерева gateway гарантирует тот же самый экземпляр @nestjs/core,
 // который создаёт приложение: две копии Nest в одном процессе
 // сломали бы DI-контейнеры и instanceof-проверки
@@ -18,12 +22,21 @@ import { AppModule as GatewayAppModule } from '../../gateway/src/app.module';
 import { HttpExceptionFilter } from '../../gateway/src/common/presentation/http/http-exception.filter';
 import { HttpLoggingInterceptor } from '../../gateway/src/common/presentation/http/http-logging.interceptor';
 import { HttpValidationPipe } from '../../gateway/src/common/presentation/http/http-validation.pipe';
+import { BullmqQueueService } from '../../gateway/src/leads-module/infrastructure/queue/bullmq-queue.service';
+import { leadsQueueConfig, type LeadsQueueConfigType } from '../../gateway/src/leads-module/leads.config';
 // Logger из дерева router это тот же класс, экземпляры которого используют
 // адаптеры доставки: подмена методов prototype перехватывает их вызовы.
 import { Logger as RouterLogger } from '../../router/node_modules/@nestjs/common';
 import { AppModule as RouterAppModule } from '../../router/src/app.module';
 import { PrismaService } from '../../router/src/common/infrastructure/prisma/prisma.service';
+import { SendLeadUseCase } from '../../router/src/leads-module/application/use-cases/send-lead.use-case';
+import { DatabaseClient } from '../../router/src/leads-module/infrastructure/delivery/database-lead-delivery/database-client/database.client';
+import {
+  httpLeadDeliveryConfig,
+  type HttpLeadDeliveryConfigType,
+} from '../../router/src/leads-module/infrastructure/delivery/http-lead-delivery/http-lead-delivery.config';
 import { TelegramLeadDeliveryAdapter } from '../../router/src/leads-module/infrastructure/delivery/telegram-lead-delivery/telegram-lead-delivery.adapter';
+import { LeadsProcessor } from '../../router/src/leads-module/presentation/queue/leads.processor';
 import { type HttpSink, startHttpSink } from './support/http-sink';
 import { type SmtpSink, startSmtpSink } from './support/smtp-sink';
 import { startTelegramApiSink, type TelegramApiSink } from './support/telegram-api-sink';
@@ -64,6 +77,24 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       .filter((job): boolean => job.data.lead.id === id)
       .map((job): ChannelEnum => job.data.channel)
       .sort();
+  };
+
+  const settledHttpJob = async (id: string): Promise<Job<SendLeadJob>> => {
+    const job = await waitFor(async (): Promise<Job<SendLeadJob> | undefined> => {
+      const jobs = await leadsQueue.getJobs(['completed', 'failed']);
+      return jobs.find((entry): boolean => entry.data.lead.id === id && entry.data.channel === ChannelEnum.HTTP);
+    });
+    if (job === undefined) {
+      throw new Error('HTTP delivery job did not settle');
+    }
+    return job;
+  };
+
+  const waitForQueueIdle = async (): Promise<void> => {
+    await waitFor(async (): Promise<boolean> => {
+      const counts = await leadsQueue.getJobCounts('waiting', 'active', 'delayed');
+      return counts.waiting === 0 && counts.active === 0 && counts.delayed === 0;
+    });
   };
 
   const postLead = async (
@@ -126,6 +157,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     process.env.HTTP_LEAD_DELIVERY_ENDPOINTS = `http://127.0.0.1:${http.port.toString()}/leads`;
     process.env.HTTP_CLIENT_TIMEOUT = '2000';
     process.env.HTTP_CLIENT_RETRY_COUNT = '1';
+    process.env.LEADS_QUEUE_BACKOFF = '50';
     process.env.EMAIL_LEAD_DELIVERY_ENABLED = 'true';
     process.env.EMAIL_LEAD_DELIVERY_TO = 'inbox@test.local';
     process.env.EMAIL_CLIENT_HOST = '127.0.0.1';
@@ -157,6 +189,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     // Общий сервер остаётся открытым до afterAll, в том числе для параллельных запросов supertest.
     await gatewayApp.listen(0, '127.0.0.1');
     leadsQueue = gatewayApp.get<Queue<SendLeadJob>>(getQueueToken(QUEUES.LEADS.QUEUE_NAME));
+    await leadsQueue.waitUntilReady();
 
     routerApp = await NestFactory.createApplicationContext(RouterAppModule);
     prisma = routerApp.get(PrismaService);
@@ -179,6 +212,16 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
 
   // Gateway tests
   describe('gateway', () => {
+    it('logs the final HTTP status after validation and error mapping', async (): Promise<void> => {
+      const debug = jest.spyOn(GatewayLogger.prototype, 'debug').mockImplementation((): void => undefined);
+      try {
+        await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send({ name: '' }).expect(400);
+        expect(debug).toHaveBeenCalledWith(expect.stringContaining('status=400'));
+      } finally {
+        debug.mockRestore();
+      }
+    });
+
     it('documents the successful response in the generated OpenAPI', (): void => {
       const document = SwaggerModule.createDocument(gatewayApp, new DocumentBuilder().setVersion('1.0').build());
 
@@ -260,6 +303,16 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
 
   // Database delivery adapter tests
   describe('database adapter', () => {
+    it('ignores a duplicate primary key even when queue deduplication is bypassed', async (): Promise<void> => {
+      const client = routerApp.get(DatabaseClient);
+      const lead = LeadEntity.generate('Database duplicate', 'duplicate@test.local', 'hello');
+
+      await client.saveLead(lead);
+      await client.saveLead(lead);
+
+      expect(await prisma.lead.count({ where: { id: lead.id } })).toBe(1);
+    });
+
     it('saves the delivered lead to postgres', async () => {
       const { lead } = await postLead('database');
 
@@ -275,6 +328,68 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
 
   // Http delivery adapter tests
   describe('http adapter', () => {
+    it('retries temporary failures and preserves endpoint status in failure events', async (): Promise<void> => {
+      await waitForQueueIdle();
+      let calls = 0;
+      const failing = await startHttpSink({
+        respond: (): { status: number } => ({ status: ++calls === 1 ? 503 : 200 }),
+      });
+      const config = routerApp.get<HttpLeadDeliveryConfigType>(httpLeadDeliveryConfig.KEY);
+      const endpoints = config.ENDPOINTS;
+      const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
+      const lead = LeadEntity.generate('HTTP retry', 'http-retry@test.local', 'hello');
+      config.ENDPOINTS = [...endpoints, `http://127.0.0.1:${failing.port.toString()}/leads`];
+      try {
+        await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
+        const job = await settledHttpJob(lead.id);
+
+        expect(await job.getState()).toBe('completed');
+        expect(job.attemptsMade).toBe(2);
+        expect(calls).toBe(2);
+        expect(
+          http.requests.filter(
+            (entry): boolean =>
+              typeof entry.body === 'object' && entry.body !== null && 'id' in entry.body && entry.body.id === lead.id,
+          ),
+        ).toHaveLength(2);
+        const expectedReason: unknown = expect.stringContaining('"status":503');
+        expect(errors).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: 'lead_delivery_failed',
+            channel: ChannelEnum.HTTP,
+            reason: expectedReason,
+          }),
+        );
+      } finally {
+        config.ENDPOINTS = endpoints;
+        errors.mockRestore();
+        await failing.close();
+      }
+    });
+
+    it('does not retry a permanent HTTP error', async (): Promise<void> => {
+      await waitForQueueIdle();
+      const failing = await startHttpSink({ respond: (): { status: number } => ({ status: 400 }) });
+      const config = routerApp.get<HttpLeadDeliveryConfigType>(httpLeadDeliveryConfig.KEY);
+      const endpoints = config.ENDPOINTS;
+      const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
+      const lead = LeadEntity.generate('HTTP rejected', 'http-rejected@test.local', 'hello');
+      config.ENDPOINTS = [`http://127.0.0.1:${failing.port.toString()}/leads`];
+      try {
+        await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
+        const job = await settledHttpJob(lead.id);
+
+        expect(await job.getState()).toBe('failed');
+        expect(job.attemptsMade).toBe(1);
+        expect(failing.requests).toHaveLength(1);
+        expect(job.failedReason).toContain('"status":400');
+      } finally {
+        config.ENDPOINTS = endpoints;
+        errors.mockRestore();
+        await failing.close();
+      }
+    });
+
     it('posts the delivered lead to the configured endpoint', async () => {
       const { lead } = await postLead('http');
 
@@ -334,6 +449,22 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
 
   // Idempotency tests
   describe('idempotency', () => {
+    it('accepts the same lead again after the deduplication TTL expires', async (): Promise<void> => {
+      const config = gatewayApp.get<LeadsQueueConfigType>(leadsQueueConfig.KEY);
+      const sender = new BullmqQueueService(leadsQueue, config, { ttlMs: 1_000 });
+      const lead = LeadEntity.generate('TTL', 'ttl@test.local', 'hello');
+
+      await sender.sendLead(ChannelEnum.CONSOLE, lead, config.attempts, config.backoff);
+      await sender.sendLead(ChannelEnum.CONSOLE, lead, config.attempts, config.backoff);
+      expect(await queuedChannels(lead.id)).toEqual([ChannelEnum.CONSOLE]);
+
+      await waitFor(
+        async (): Promise<boolean> => (await leadsQueue.getDeduplicationJobId(`${lead.id}-console`)) === null,
+      );
+      await sender.sendLead(ChannelEnum.CONSOLE, lead, config.attempts, config.backoff);
+      expect(await queuedChannels(lead.id)).toEqual([ChannelEnum.CONSOLE, ChannelEnum.CONSOLE]);
+    });
+
     it('deduplicates concurrent requests independently for every channel', async (): Promise<void> => {
       const lead = LeadEntity.generate('Concurrent', 'concurrent@test.local', 'hello');
 
@@ -432,6 +563,82 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       } finally {
         enabled.mockRestore();
       }
+    });
+  });
+
+  describe('infrastructure failures', (): void => {
+    it('returns 503 within the Redis command budget and recovers after Redis resumes', async (): Promise<void> => {
+      await waitForQueueIdle();
+      const lead = LeadEntity.generate('Redis timeout', 'redis-timeout@test.local', 'hello');
+      const errors = jest.spyOn(GatewayLogger.prototype, 'error').mockImplementation((): void => undefined);
+      await redis.exec(['redis-cli', 'CLIENT', 'PAUSE', '8000', 'ALL']);
+      try {
+        const startedAt = Date.now();
+        await request(gatewayApp.getHttpServer())
+          .post('/api/v1/leads')
+          .send(lead)
+          .timeout({ response: 7_000, deadline: 7_500 })
+          .expect(503);
+        expect(Date.now() - startedAt).toBeLessThan(7_000);
+      } finally {
+        await redis.exec(['redis-cli', 'PING']);
+        errors.mockRestore();
+      }
+      await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
+      expect(await queuedChannels(lead.id)).toEqual(Object.values(ChannelEnum).sort());
+    });
+  });
+
+  describe('shutdown', (): void => {
+    it('drains an active database delivery before disconnecting Prisma', async (): Promise<void> => {
+      await waitForQueueIdle();
+      const lead = LeadEntity.generate('Shutdown', 'shutdown@test.local', 'hello');
+      const useCase = routerApp.get(SendLeadUseCase);
+      const processor = routerApp.get(LeadsProcessor);
+      const execute = useCase.execute.bind(useCase);
+      const disconnect = prisma.$disconnect.bind(prisma);
+      const closeWorker = processor.worker.close.bind(processor.worker);
+      const order: string[] = [];
+      let release!: () => void;
+      let handling = false;
+      let draining = false;
+      const pending = new Promise<void>((resolve): void => {
+        release = resolve;
+      });
+      const sending = jest.spyOn(useCase, 'execute').mockImplementation(async (channel, current): Promise<void> => {
+        const target = current.id === lead.id && channel === ChannelEnum.DATABASE;
+        if (target) {
+          handling = true;
+          await pending;
+        }
+        await execute(channel, current);
+        if (target) {
+          order.push('saved');
+        }
+      });
+      const disconnecting = jest.spyOn(prisma, '$disconnect').mockImplementation(async (): Promise<void> => {
+        order.push('disconnected');
+        await disconnect();
+      });
+      const drainingWorker = jest.spyOn(processor.worker, 'close').mockImplementation(async (force): Promise<void> => {
+        draining = true;
+        await closeWorker(force);
+      });
+      let closing: Promise<void> | undefined;
+      try {
+        await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
+        await waitFor((): boolean => handling);
+        closing = routerApp.close();
+        await waitFor((): boolean => draining);
+        expect(disconnecting).not.toHaveBeenCalled();
+      } finally {
+        release();
+        await closing;
+        sending.mockRestore();
+        disconnecting.mockRestore();
+        drainingWorker.mockRestore();
+      }
+      expect(order).toEqual(['saved', 'disconnected']);
     });
   });
 });
