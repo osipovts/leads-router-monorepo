@@ -27,6 +27,16 @@ import { waitFor } from './support/wait-for';
 
 jest.setTimeout(240_000);
 
+// afterAll вызывается даже при упавшем beforeAll, поэтому доступ к неинициализированным
+// ресурсам оборачивается в молчаливый catch: чистка best-effort, остальные - продолжаются
+const silently = async (action: () => unknown): Promise<void> => {
+  try {
+    await action();
+  } catch {
+    // ресурс не был создан (beforeAll оборвался раньше) или уже закрыт
+  }
+};
+
 describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adapters', () => {
   // Переменные присваиваются в beforeAll: jest не выполняет тесты,
   // если beforeAll упал, поэтому в самих тестах они гарантированно заполнены
@@ -139,21 +149,28 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
 
   afterAll(async () => {
     jest.restoreAllMocks();
-    await gatewayApp.close();
-    await routerApp.close();
-    await http.close();
-    await smtp.close();
-    telegramApi.restore();
-    await postgres.stop();
-    await redis.stop();
+
+    // beforeAll мог оборваться на середине: каждый ресурс чистим независимо от остальных
+    await silently(() => gatewayApp.close());
+    await silently(() => routerApp.close());
+    await silently(() => http.close());
+    await silently(() => smtp.close());
+    await silently(() => {
+      telegramApi.restore();
+    });
+    await silently(() => postgres.stop());
+    await silently(() => redis.stop());
   });
 
   // Gateway tests
   describe('gateway', () => {
-    it('accepts a valid lead and responds with echoed data', async () => {
+    it('accepts a valid lead, generates its id and responds with echoed data', async () => {
       const { lead, response } = await postLead('gateway-valid');
 
-      expect(response.body).toEqual({ success: true, data: lead });
+      expect(response.body).toMatchObject({ success: true, data: lead });
+      expect((response.body as { data: { id: string } }).data.id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
     });
 
     it('rejects an invalid lead with a validation error', async () => {
@@ -212,7 +229,11 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       );
 
       expect(delivery?.url).toBe('/leads');
-      expect(delivery?.body).toEqual(lead);
+      expect(delivery?.body).toMatchObject(lead);
+      // каскад должен получать id лида для дедупликации на своей стороне
+      expect((delivery?.body as { id?: string }).id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
     });
   });
 
@@ -252,6 +273,36 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       const expectedText = `From: ${lead.name} <${lead.contact}>\nMessage: ${lead.message}`;
 
       expect(delivery?.text.replace(/\r\n/g, '\n').trim()).toBe(expectedText);
+    });
+  });
+
+  // Idempotency tests
+  describe('idempotency', () => {
+    it('skips broadcast for a duplicate lead posted with the same id', async () => {
+      const { lead, response } = await postLead('idempotency');
+      const id = (response.body as { data: { id: string } }).data.id;
+
+      await waitFor(
+        () => http.requests.find((entry) => (entry.body as { contact?: string }).contact === lead.contact),
+        10_000,
+        'first delivery',
+      );
+
+      // Повтор запроса с тем же id (как ретрай клиента или пересылка каскадом)
+      const duplicate = await request(gatewayApp.getHttpServer() as HttpServer)
+        .post('/api/v1/leads')
+        .send({ id, ...lead })
+        .expect(201);
+
+      expect((duplicate.body as { data: { id: string } }).data.id).toBe(id);
+
+      // Второй доставки не было: в http-синке по-прежнему ровно один запрос этого лида
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1_500);
+      });
+      expect(
+        http.requests.filter((entry) => (entry.body as { contact?: string }).contact === lead.contact),
+      ).toHaveLength(1);
     });
   });
 

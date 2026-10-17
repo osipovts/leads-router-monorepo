@@ -22,6 +22,17 @@ HTTP-адаптер позволяет строить цепочки инста�
 российском сервере принимает лид (там же можно его сохранить в БД-адаптере чтобы он точно не потерялся), затем через
 HTTP-адаптер лид отправляется на зарубежный инстанс, и оттуда уходит в Telegram.
 
+## Гарантии доставки
+
+Доставка имеет семантику at-least-once: при сбоях система предпочитает доставить лид повторно, чем потерять его.
+Источники повторных доставок:
+
+- повтор POST лида клиентом или вышестоящим инстансом каскада;
+- ретраи BullMQ (`LEADS_QUEUE_ATTEMPTS` с задержкой `LEADS_QUEUE_BACKOFF`);
+- ретраи HTTP-клиента на сетевых ошибках и ответах 429 (`HTTP_CLIENT_RETRY_COUNT`).
+
+Идемпотентность обеспечивается id лида (UUID).
+
 ## Быстрый запуск
 
 Скопируйте репозиторий
@@ -30,7 +41,7 @@ HTTP-адаптер лид отправляется на зарубежный и
 git clone https://github.com/osipovts/leads-router-monorepo.git
 ```
 
-Скопируйте `env.example` в `.env` и настройте проект.
+Скопируйте `.env.example` в `.env` и настройте проект.
 
 ```bash
 cd leads-router-monorepo
@@ -48,7 +59,8 @@ docker compose up --build
 После запуска будут доступны:
 
 1. Пример фронтенда на [http://localhost:5173](http://localhost:5173)
-2. Swagger UI на [http://localhost:3000](http://localhost:3000). Можно отключить в `app/gateway/.env`
+2. Swagger UI на [http://localhost:3000](http://localhost:3000). Включается переменной `APP_SWAGGER_ENABLE` в
+   `apps/gateway/.env`
 3. Bull Dashboard на [http://localhost:4000](http://localhost:4000)
 
 `docker-compose.yml` содержит лишь самодостаточную демо-конфигурацию: для полноценного production-использования он не
