@@ -42,7 +42,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 # --- RUN: migrations ---
 FROM build AS migrate
 WORKDIR /workspace/apps/router
-CMD ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]
+USER node
+CMD ["./node_modules/.bin/prisma", "migrate", "deploy"]
 
 # --- RUN: gateway ---
 FROM gcr.io/distroless/nodejs${NODE_VERSION}-debian13:nonroot AS gateway
