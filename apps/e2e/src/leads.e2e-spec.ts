@@ -19,7 +19,9 @@ import { HttpValidationPipe } from '../../gateway/src/common/presentation/http/h
 import { Logger as RouterLogger } from '../../router/node_modules/@nestjs/common';
 import { AppModule as RouterAppModule } from '../../router/src/app.module';
 import { PrismaService } from '../../router/src/common/infrastructure/prisma/prisma.service';
+import { TelegramLeadDeliveryAdapter } from '../../router/src/leads-module/infrastructure/delivery/telegram-lead-delivery/telegram-lead-delivery.adapter';
 import { type HttpSink, startHttpSink } from './support/http-sink';
+import { type TelegramApiSink, startTelegramApiSink } from './support/telegram-api-sink';
 import { waitFor } from './support/wait-for';
 
 jest.setTimeout(240_000);
@@ -33,6 +35,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
   let gatewayApp!: Awaited<ReturnType<typeof NestFactory.create>>;
   let routerApp!: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>;
   let prisma!: PrismaService;
+  let telegramApi!: TelegramApiSink;
   let adapterLog!: jest.SpyInstance;
   let useCaseWarn!: jest.SpyInstance;
 
@@ -90,13 +93,17 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
 
     process.env.CONSOLE_LEAD_DELIVERY_ENABLED = 'true';
     process.env.DATABASE_LEAD_DELIVERY_ENABLED = 'true';
-    process.env.TELEGRAM_LEAD_DELIVERY_ENABLED = 'false';
+    process.env.TELEGRAM_LEAD_DELIVERY_ENABLED = 'true';
     process.env.TELEGRAM_LEAD_DELIVERY_CHAT_ID = '123456789';
     process.env.TELEGRAM_CLIENT_TOKEN = '123456:test-token';
     process.env.HTTP_LEAD_DELIVERY_ENABLED = 'true';
     process.env.HTTP_LEAD_DELIVERY_ENDPOINTS = `http://127.0.0.1:${sink.port.toString()}/leads`;
     process.env.HTTP_CLIENT_TIMEOUT = '2000';
     process.env.HTTP_CLIENT_RETRY_COUNT = '1';
+
+    // Транспорт node-telegram-bot-api запоминает globalThis.fetch в конструкторе,
+    // поэтому синк должен быть установлен до создания router-приложения
+    telegramApi = startTelegramApiSink('123456:test-token');
 
     // Nest Logger захватывает ссылки на console при создании экземпляров,
     // поэтому надёжнее шпионить за prototype класса из дерева router
@@ -124,6 +131,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     await gatewayApp.close();
     await routerApp.close();
     await sink.close();
+    telegramApi.restore();
     await postgres.stop();
     await redis.stop();
   });
@@ -196,16 +204,43 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     });
   });
 
+  // Telegram delivery adapter tests
+  describe('telegram adapter', () => {
+    it('sends the lead text to the configured chat', async () => {
+      const { lead } = await postLead('telegram');
+
+      const delivery = await waitFor(
+        () => telegramApi.calls.find((call) => call.params.text?.includes(lead.contact)),
+        10_000,
+        'telegram api call',
+      );
+
+      expect(delivery?.url).toBe('https://api.telegram.org/bot123456:test-token/sendMessage');
+      expect(delivery?.params.chat_id).toBe('123456789');
+      expect(delivery?.params.text).toBe(`From: ${lead.name} <${lead.contact}>\nMessage: ${lead.message}`);
+    });
+  });
+
   // Disabled channel test
   describe('disabled channels', () => {
     it('router skips disabled telegram channel with warning', async () => {
-      // Warn не содержит идентификатора лида, поэтому тест фиксирует счётчик
-      // вызовов до отправки и ждёт его увеличения
-      const warnsBefore = useCaseWarn.mock.calls.length;
+      // Канал включён глобально, поэтому адаптер отключается точечно:
+      // тест проверяет пропуск лида в use-case, а не чтение конфига
+      const enabled = jest
+        .spyOn(TelegramLeadDeliveryAdapter.prototype, 'enabled', 'get')
+        .mockReturnValue(false);
 
-      await postLead('telegram-skip');
+      try {
+        // Warn не содержит идентификатора лида, поэтому тест фиксирует счётчик
+        // вызовов до отправки и ждёт его увеличения
+        const warnsBefore = useCaseWarn.mock.calls.length;
 
-      await waitFor(() => useCaseWarn.mock.calls.length > warnsBefore, 10_000, 'telegram skip warning');
+        await postLead('telegram-skip');
+
+        await waitFor(() => useCaseWarn.mock.calls.length > warnsBefore, 10_000, 'telegram skip warning');
+      } finally {
+        enabled.mockRestore();
+      }
     });
   });
 });
