@@ -20,10 +20,18 @@ export class BullmqQueueService implements QueuePort {
     @InjectQueue(QUEUES.LEADS.QUEUE_NAME) private readonly leadsQueue: Queue<SendLeadJob>,
     @Inject(leadsQueueConfig.KEY) private readonly config: LeadsQueueConfigType,
     @Inject(leadsDeduplicationConfig.KEY) private readonly deduplicationConfig: LeadsDeduplicationConfigType,
-  ) {}
+  ) {
+    this.leadsQueue.on('error', (error: Error): void => {
+      this.logger.error({ event: 'leads_queue_error', error: error.name, message: error.message });
+    });
+  }
 
   async sendLead(channel: ChannelEnum, lead: LeadEntity, attempts: number, backoff: number): Promise<void> {
     try {
+      // До первого подключения BullMQ может ждать Redis без ограничения времени.
+      if (this.leadsQueue.getBackend().connection.status !== 'ready') {
+        throw new QueueUnavailableException();
+      }
       const jobName = QUEUES.LEADS.JOBS.SEND;
       const job: SendLeadJob = { channel, lead };
       const options = {

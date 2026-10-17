@@ -1,5 +1,5 @@
 import { bullmqConfig, type BullmqConfigType } from '@leads-router/common';
-import { BullModule } from '@nestjs/bullmq';
+import { BullModule, type BullRootModuleOptions } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
@@ -23,7 +23,15 @@ import { LeadsModule } from './leads-module/leads.module';
     BullModule.forRootAsync({
       imports: [ConfigModule.forFeature(bullmqConfig)],
       inject: [bullmqConfig.KEY],
-      useFactory: (config: BullmqConfigType) => ({ connection: config.connection }),
+      useFactory: (config: BullmqConfigType): BullRootModuleOptions => ({
+        connection: {
+          ...config.connection,
+          enableOfflineQueue: false,
+          maxRetriesPerRequest: 1,
+          connectTimeout: 5_000,
+          commandTimeout: 5_000,
+        },
+      }),
     }),
     LeadsModule,
   ],

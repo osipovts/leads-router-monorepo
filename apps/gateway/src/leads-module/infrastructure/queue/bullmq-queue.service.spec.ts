@@ -1,8 +1,10 @@
+import { EventEmitter } from 'node:events';
+
 import { ChannelEnum, InfrastructureException, LeadEntity, QUEUES, type SendLeadJob } from '@leads-router/common';
 import { getQueueToken } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
-import type { Queue } from 'bullmq';
+import type { Queue, RedisConnection } from 'bullmq';
 
 import { leadsDeduplicationConfig, leadsQueueConfig, type LeadsQueueConfigType } from '../../leads.config';
 import { BullmqQueueService } from './bullmq-queue.service';
@@ -22,6 +24,8 @@ describe('BullmqQueueService', () => {
   let add: jest.MockedFunction<Queue<SendLeadJob>['add']>;
   let module: TestingModule;
   let service: BullmqQueueService;
+  let events: EventEmitter;
+  let connectionStatus: RedisConnection['status'];
 
   beforeAll((): void => {
     loggerError = jest.spyOn(Logger.prototype, 'error').mockImplementation((): void => undefined);
@@ -34,10 +38,25 @@ describe('BullmqQueueService', () => {
   beforeEach(async (): Promise<void> => {
     loggerError.mockClear();
     add = jest.fn();
+    events = new EventEmitter();
+    connectionStatus = 'ready';
     module = await Test.createTestingModule({
       providers: [
         BullmqQueueService,
-        { provide: getQueueToken(QUEUES.LEADS.QUEUE_NAME), useValue: { add } },
+        {
+          provide: getQueueToken(QUEUES.LEADS.QUEUE_NAME),
+          useValue: {
+            add,
+            on: events.on.bind(events),
+            getBackend: (): { connection: Pick<RedisConnection, 'status'> } => ({
+              connection: {
+                get status(): RedisConnection['status'] {
+                  return connectionStatus;
+                },
+              },
+            }),
+          },
+        },
         { provide: leadsQueueConfig.KEY, useValue: CONFIG },
         { provide: leadsDeduplicationConfig.KEY, useValue: DEDUPLICATION_CONFIG },
       ],
@@ -74,6 +93,36 @@ describe('BullmqQueueService', () => {
     await service.sendLead(ChannelEnum.TELEGRAM, lead, CONFIG.attempts, CONFIG.backoff);
 
     expect(add.mock.calls[0][2]?.deduplication?.id).not.toBe(add.mock.calls[1][2]?.deduplication?.id);
+  });
+
+  it('deduplicates UUIDs independently of their letter case', async (): Promise<void> => {
+    const id = '0F14D0AB-9605-4A62-A9E4-5ED26688389B';
+    const upper = new LeadEntity(id, 'Ivan', 'ivan@example.com', 'hello');
+    const lower = new LeadEntity(id.toLowerCase(), upper.name, upper.contact, upper.message);
+
+    await service.sendLead(ChannelEnum.EMAIL, upper, CONFIG.attempts, CONFIG.backoff);
+    await service.sendLead(ChannelEnum.EMAIL, lower, CONFIG.attempts, CONFIG.backoff);
+
+    expect(add.mock.calls[0][2]?.deduplication?.id).toBe(add.mock.calls[1][2]?.deduplication?.id);
+  });
+
+  it('logs asynchronous queue connection errors', (): void => {
+    events.emit('error', new Error('Redis unavailable'));
+    expect(loggerError).toHaveBeenCalledWith({
+      event: 'leads_queue_error',
+      error: 'Error',
+      message: 'Redis unavailable',
+    });
+  });
+
+  it('rejects enqueue before the first Redis connection is ready', async (): Promise<void> => {
+    connectionStatus = 'initializing';
+    const lead = LeadEntity.generate('Ivan', 'ivan@example.com', 'hello');
+
+    await expect(service.sendLead(ChannelEnum.EMAIL, lead, CONFIG.attempts, CONFIG.backoff)).rejects.toBeInstanceOf(
+      QueueUnavailableException,
+    );
+    expect(add).not.toHaveBeenCalled();
   });
 
   it('throws a typed exception without logging lead data when enqueue fails', async (): Promise<void> => {
