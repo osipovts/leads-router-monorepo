@@ -1,16 +1,16 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 
-import type { AppConfigType } from './app.config';
-import { appConfig } from './app.config';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  // Воркер не обслуживает HTTP, поэтому контекст приложения вместо express-сервера
+  const app = await NestFactory.createApplicationContext(AppModule);
 
-  const config = app.get<AppConfigType>(appConfig.KEY);
+  // Graceful shutdown on SIGTERM/SIGINT: дорабатываем джобу, закрываем Redis и Prisma
+  app.enableShutdownHooks();
 
-  await app.listen(config.port, config.host);
+  Logger.log('Router worker started', 'Bootstrap');
 }
 
 bootstrap().catch((e: unknown): void => {
