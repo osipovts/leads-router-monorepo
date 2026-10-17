@@ -5,6 +5,7 @@ import z from 'zod';
 const appConfigSchema = z.object({
   APP_HOST: z.string().trim().min(1).default('0.0.0.0'),
   APP_PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
+  APP_TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(0),
 });
 
 export const APP_CONFIG = 'APP_CONFIG';
@@ -15,6 +16,7 @@ export const appConfig = registerAs(APP_CONFIG, () => {
   return {
     host: env.APP_HOST,
     port: env.APP_PORT,
+    trustProxyHops: env.APP_TRUST_PROXY_HOPS,
   };
 });
 

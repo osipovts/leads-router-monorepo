@@ -1,6 +1,7 @@
 import { Logger, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import type { Express } from 'express';
 
 import type { AppConfigType } from './app.config';
 import { appConfig } from './app.config';
@@ -23,6 +24,9 @@ async function bootstrap(): Promise<void> {
   app.useGlobalInterceptors(new HttpLoggingInterceptor());
   app.useGlobalPipes(new HttpValidationPipe());
 
+  // Graceful shutdown on SIGTERM/SIGINT
+  app.enableShutdownHooks();
+
   // Swagger
   const swagger = app.get<SwaggerConfigType>(swaggerConfig.KEY);
   if (swagger.isEnabled) {
@@ -34,7 +38,14 @@ async function bootstrap(): Promise<void> {
   }
 
   // Start
-  const { host, port } = app.get<AppConfigType>(appConfig.KEY);
+  const { host, port, trustProxyHops } = app.get<AppConfigType>(appConfig.KEY);
+
+  // За reverse-proxy без этого rate limiter видит IP прокси, и все клиенты делят один лимит
+  if (trustProxyHops > 0) {
+    const express = app.getHttpAdapter().getInstance() as Express;
+    express.set('trust proxy', trustProxyHops);
+  }
+
   await app.listen(port, host);
 
   // Post-start logs
