@@ -10,7 +10,7 @@ import { GenericContainer, type StartedTestContainer, Wait } from 'testcontainer
 
 import { type INestApplication, VersioningType } from '../../gateway/node_modules/@nestjs/common';
 // Импорт из дерева gateway гарантирует тот же самый экземпляр @nestjs/core,
-// которым бутстрапится само приложение: две копии Nest в одном процессе
+// который создаёт приложение: две копии Nest в одном процессе
 // сломали бы DI-контейнеры и instanceof-проверки
 import { NestFactory } from '../../gateway/node_modules/@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '../../gateway/node_modules/@nestjs/swagger';
@@ -19,7 +19,7 @@ import { HttpExceptionFilter } from '../../gateway/src/common/presentation/http/
 import { HttpLoggingInterceptor } from '../../gateway/src/common/presentation/http/http-logging.interceptor';
 import { HttpValidationPipe } from '../../gateway/src/common/presentation/http/http-validation.pipe';
 // Logger из дерева router это тот же класс, экземпляры которого используют
-// delivery-адаптеры: шпион за prototype ловит их вызовы
+// адаптеры доставки: подмена методов prototype перехватывает их вызовы.
 import { Logger as RouterLogger } from '../../router/node_modules/@nestjs/common';
 import { AppModule as RouterAppModule } from '../../router/src/app.module';
 import { PrismaService } from '../../router/src/common/infrastructure/prisma/prisma.service';
@@ -32,7 +32,7 @@ import { waitFor } from './support/wait-for';
 jest.setTimeout(240_000);
 
 // afterAll вызывается даже при упавшем beforeAll, поэтому доступ к неинициализированным
-// ресурсам оборачивается в молчаливый catch: чистка best-effort, остальные - продолжаются
+// ресурсам защищён обработкой ошибок, чтобы сбой очистки не мешал закрыть остальные.
 const silently = async (action: () => unknown): Promise<void> => {
   try {
     await action();
@@ -71,7 +71,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
   ): Promise<{ lead: { name: string; contact: string; message: string }; response: request.Response }> => {
     leadSeq += 1;
 
-    // Уникальный contact это маркер конкретного теста: gateway бродкастит каждый
+    // Уникальный contact служит маркером теста: gateway отправляет каждый
     // лид во все каналы, поэтому тесты изолируются фильтрацией по contact
     const lead = {
       name: `E2E ${label}`,
@@ -136,18 +136,18 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     process.env.EMAIL_CLIENT_FROM = 'leads@test.local';
 
     // Транспорт node-telegram-bot-api запоминает globalThis.fetch в конструкторе,
-    // поэтому синк должен быть установлен до создания router-приложения
+    // поэтому перехват устанавливается до создания router-приложения.
     telegramApi = startTelegramApiSink('123456:test-token');
 
     // Nest Logger захватывает ссылки на console при создании экземпляров,
-    // поэтому надёжнее шпионить за prototype класса из дерева router
+    // поэтому перехватываются методы prototype класса из дерева router.
     adapterLog = jest.spyOn(RouterLogger.prototype, 'log').mockImplementation(() => undefined);
     useCaseVerbose = jest.spyOn(RouterLogger.prototype, 'verbose').mockImplementation(() => undefined);
     jest.spyOn(console, 'log').mockImplementation(() => undefined);
     jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-    // Bootstrap повторяет gateway main.ts: versioning, префикс и глобальные
-    // pipe/interceptor/filter регистрируются там, а не в AppModule
+    // Настройка повторяет gateway main.ts: версия API, префикс и глобальные
+    // обработчики регистрируются при запуске, а не в AppModule.
     gatewayApp = await NestFactory.create<INestApplication<HttpServer>>(GatewayAppModule);
     gatewayApp.enableVersioning({ type: VersioningType.URI });
     gatewayApp.setGlobalPrefix('api');
@@ -286,7 +286,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
 
       expect(delivery?.url).toBe('/leads');
       expect(delivery?.body).toMatchObject(lead);
-      // каскад должен получать id лида для дедупликации на своей стороне
+      // Каскад получает id лида для дедупликации на своей стороне.
       expect((delivery?.body as { id?: string }).id).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
       );

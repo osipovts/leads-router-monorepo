@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { InvalidLeadException } from './invalid-lead.exception';
 
 /**
- * POJO-форма лида: в таком виде сущность сериализуется в очередь доставки и восстанавливается из неё.
+ * Данные лида для передачи через очередь и восстановления сущности.
  */
 export interface LeadPayload {
   readonly id: string;
@@ -19,7 +19,7 @@ export class LeadEntity {
     public readonly contact: string,
     public readonly message: string,
   ) {
-    // Значения проверяются как unknown: payload приходит из очереди и мог быть повреждён
+    // Данные из очереди проверяются во время выполнения: их типы могут отличаться от объявленных.
     const fields: Array<[field: string, value: unknown, limits: LeadFieldLimits]> = [
       ['id', id, LeadEntityValidation.id],
       ['name', name, LeadEntityValidation.name],
@@ -85,14 +85,14 @@ interface LeadFieldLimits {
 }
 
 export const LeadEntityValidation = Object.freeze({
-  // id - основа идемпотентности: по нему gateway дедуплицирует повторы, а database-адаптер
-  // пропускает повторную вставку, поэтому payloads без id считаются невалидными
+  // id используется для дедупликации задач и защиты от повторной вставки в БД.
+  // Данные лида без id не проходят проверку.
   id: {
     pattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     patternViolation: 'must be a valid UUID',
   },
-  // Control-символы (\p{Cc}) запрещены во всех полях, кроме перевода строки в message:
-  // name попадает в заголовок письма, и CRLF в нём - это header injection
+  // Управляющие символы (\p{Cc}) запрещены; в message разрешён перевод строки.
+  // Поле name используется в теме письма, поэтому CR и LF в нём запрещены.
   name: {
     minLength: 1,
     maxLength: 64,
@@ -108,7 +108,7 @@ export const LeadEntityValidation = Object.freeze({
   message: {
     minLength: 1,
     maxLength: 2048,
-    // Единственный разрешённый control-символ - перевод строки
+    // Из управляющих символов разрешён только LF.
     pattern: /^(?:[^\p{Cc}]|\n)*$/u,
     patternViolation: 'must not contain control characters',
   },

@@ -3,7 +3,7 @@ import { ZodError } from 'zod';
 import { httpClientConfig } from './http-client/http-client.config';
 import { httpLeadDeliveryConfig } from './http-lead-delivery.config';
 
-// Пока HTTP_LEAD_DELIVERY_ENABLED выключен, обе конфиг-фабрики адаптера возвращают стаб
+// Пока HTTP_LEAD_DELIVERY_ENABLED выключен, фабрики конфигурации адаптера и клиента возвращают конфигурацию отключённого адаптера
 // и не парсят схемы — ENDPOINTS и настройки клиента могут отсутствовать
 describe('http lead delivery config', () => {
   const ENV_KEYS = [

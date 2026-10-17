@@ -3,7 +3,7 @@ import { ZodError } from 'zod';
 import { emailClientConfig } from './email-client/email-client.config';
 import { emailLeadDeliveryConfig } from './email-lead-delivery.config';
 
-// Пока EMAIL_LEAD_DELIVERY_ENABLED выключен, обе конфиг-фабрики адаптера возвращают стаб
+// Пока EMAIL_LEAD_DELIVERY_ENABLED выключен, фабрики конфигурации адаптера и клиента возвращают конфигурацию отключённого адаптера
 // и не парсят схемы — TO и SMTP-переменные могут отсутствовать
 describe('email lead delivery config', () => {
   const ENV_KEYS = [

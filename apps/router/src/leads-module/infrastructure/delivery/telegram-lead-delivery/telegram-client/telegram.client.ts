@@ -9,9 +9,8 @@ export class TelegramClient {
 
   constructor(@Inject(telegramClientConfig.KEY) private readonly config: TelegramClientConfigType) {}
 
-  // Бот валидирует токен в конструкторе, а клиент инстанцируется NestJS даже при выключенной
-  // доставке (тогда токен по контракту isDeliveryEnabled может отсутствовать в env), поэтому
-  // создаётся лениво — при первом реальном sendMessage
+  // NestJS создаёт клиент и при отключённой доставке, когда токен может отсутствовать.
+  // Bot проверяет токен в конструкторе, поэтому создаётся при первом вызове sendMessage.
   private get bot(): Bot {
     this._bot ??= new Bot(this.config.token, { timeoutMs: 10_000 });
     return this._bot;

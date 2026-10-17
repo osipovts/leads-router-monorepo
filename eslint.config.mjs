@@ -11,7 +11,7 @@ export default defineConfig(
     ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**', '**/prisma/generated/**'],
   },
 
-  // Базовые JS правила
+  // Базовые правила JavaScript
   js.configs.recommended,
 
   // Общие настройки JS/TS
@@ -43,7 +43,7 @@ export default defineConfig(
       // 3. относительные импорты
       'simple-import-sort/imports': 'error',
 
-      // Сортирует export statements
+      // Сортировка экспортов
       'simple-import-sort/exports': 'error',
     },
   },
@@ -52,7 +52,7 @@ export default defineConfig(
   {
     files: ['**/*.{ts,mts,cts}'],
 
-    // Строгие TS правила
+    // Строгие правила TypeScript
     extends: [
       tseslint.configs.strictTypeChecked,
 
@@ -62,7 +62,7 @@ export default defineConfig(
 
     languageOptions: {
       parserOptions: {
-        // ESLint сам найдет tsconfig; Prisma config находится вне src.
+        // ESLint находит tsconfig автоматически; конфигурация Prisma проверяется отдельно.
         tsconfigRootDir: import.meta.dirname,
         projectService: {
           allowDefaultProject: ['apps/router/prisma.config.ts'],
@@ -132,26 +132,26 @@ export default defineConfig(
       // await saveUser(user)
       '@typescript-eslint/no-floating-promises': 'error',
 
-      // Проверка async callback
+      // Проверка асинхронных обработчиков
       '@typescript-eslint/no-misused-promises': 'error',
 
-      // Запрещает небезопасный any flow
+      // Запрещает использование значений any без проверки типа
       '@typescript-eslint/no-unsafe-assignment': 'error',
       '@typescript-eslint/no-unsafe-argument': 'error',
       '@typescript-eslint/no-unsafe-call': 'error',
       '@typescript-eslint/no-unsafe-member-access': 'error',
       '@typescript-eslint/no-unsafe-return': 'error',
 
-      // Запрещает опасные проверки:
+      // Неявные проверки строк и чисел запрещены:
       // if (someString)
       //
-      // вместо:
+      // Используйте:
       // if (someString !== '')
       '@typescript-eslint/strict-boolean-expressions': 'error',
     },
   },
 
-  // JS файлы не проверяем type-aware правилами TS
+  // Для JavaScript отключены правила TypeScript, требующие информации о типах
   {
     files: ['**/*.{js,mjs,cjs}'],
     extends: [tseslint.configs.disableTypeChecked],

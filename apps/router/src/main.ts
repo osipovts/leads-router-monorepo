@@ -4,10 +4,10 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
-  // Воркер не обслуживает HTTP, поэтому контекст приложения вместо express-сервера
+  // Обработчик очереди запускается без HTTP-сервера.
   const app = await NestFactory.createApplicationContext(AppModule);
 
-  // Graceful shutdown on SIGTERM/SIGINT: дорабатываем джобу, закрываем Redis и Prisma
+  // При SIGTERM/SIGINT приложение завершает обработку задач и закрывает соединения.
   app.enableShutdownHooks();
 
   Logger.log('Router worker started', 'Bootstrap');

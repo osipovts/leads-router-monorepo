@@ -3,7 +3,7 @@ import { ZodError } from 'zod';
 import { telegramClientConfig } from './telegram-client/telegram-client.config';
 import { telegramLeadDeliveryConfig } from './telegram-lead-delivery.config';
 
-// Пока TELEGRAM_LEAD_DELIVERY_ENABLED выключен, обе конфиг-фабрики адаптера возвращают стаб
+// Пока TELEGRAM_LEAD_DELIVERY_ENABLED выключен, фабрики конфигурации адаптера и клиента возвращают конфигурацию отключённого адаптера
 // и не парсят схемы — CHAT_ID и токен могут отсутствовать в env
 describe('telegram lead delivery config', () => {
   const ENV_KEYS = [

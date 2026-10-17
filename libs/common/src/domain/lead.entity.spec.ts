@@ -8,7 +8,7 @@ const VALID = {
   id: '0f14d0ab-9605-4a62-a9e4-5ed26688389b',
   name: 'Иван',
   contact: 'ivan@example.com',
-  // Перевод строки в message разрешён - единственное исключение из запрета control-символов
+  // Перевод строки в message разрешён; остальные управляющие символы запрещены.
   message: 'Привет!\nВторая строка',
 } satisfies LeadPayload;
 

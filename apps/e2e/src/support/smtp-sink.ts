@@ -22,9 +22,8 @@ const addressText = (value: AddressObject | AddressObject[] | undefined): string
 
 /**
  * Локальный SMTP-сервер, записывающий все приходящие письма.
- * Используется как почтовый сервер для email delivery-адаптера: клиент делает
- * настоящую SMTP-сессию через nodemailer, а тест контролирует доставку по
- * содержимому `messages` (письма парсятся через mailparser).
+ * Почтовый адаптер подключается через nodemailer, а тест проверяет
+ * доставку по messages. Письма разбираются через mailparser.
  */
 export function startSmtpSink(): Promise<SmtpSink> {
   const messages: SmtpMessage[] = [];
@@ -32,8 +31,8 @@ export function startSmtpSink(): Promise<SmtpSink> {
   const server = new SMTPServer({
     authOptional: true,
     disabledCommands: ['STARTTLS'],
-    // nodemailer шлёт AUTH, если в транспорте заданы креды, поэтому синк
-    // принимает любые: проверка аутентификации не входит в сценарий теста
+    // Nodemailer отправляет AUTH, если заданы учётные данные.
+    // Тестовый сервер принимает любые значения: проверка аутентификации здесь не требуется.
     onAuth: (auth, session, callback) => {
       callback(null, { user: auth.username });
     },

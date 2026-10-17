@@ -18,8 +18,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     const description = `${request.method} ${request.url}: ${res.error.message}`;
 
-    // 4xx - ошибка клиента, а не приложения: warn без стека, иначе валидационные 400
-    // и троттлинг 429 зашумляют error-лог и алерты
+    // Ответы 4xx записываются на уровне warn без стека, чтобы ошибки валидации
+    // и превышение лимита запросов не создавали лишних сообщений уровня error.
     if (status >= HttpStatus.BAD_REQUEST && status < HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.warn(description);
     } else {

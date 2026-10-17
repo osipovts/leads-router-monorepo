@@ -2,7 +2,7 @@ import { ZodError } from 'zod';
 
 import { prismaConfig } from './prisma.config';
 
-// Пока флаг database-канала не включён явно, конфиг-фабрика возвращает стаб и не парсит схему
+// Пока флаг database-канала не включён явно, фабрика конфигурации возвращает конфигурацию отключённого адаптера без проверки схемы
 // (см. libs/common delivery-enabled.ts): router запускается без DATABASE_URL
 describe('prismaConfig', () => {
   const ENV_KEYS = ['DATABASE_LEAD_DELIVERY_ENABLED', 'DATABASE_URL'] as const;

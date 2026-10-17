@@ -19,7 +19,7 @@ class AdapterFake implements LeadDeliveryPort {
   }
 }
 
-// Контракт ENABLED-флага: выключенный канал молча пропускается, нерегистрированный - ошибка приложения
+// Выключенный канал пропускается; отсутствие зарегистрированного адаптера вызывает ошибку приложения.
 describe('SendLeadUseCase', () => {
   let loggerVerbose: jest.SpyInstance;
   let consoleAdapter: AdapterFake;

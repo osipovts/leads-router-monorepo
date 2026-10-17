@@ -13,9 +13,8 @@ export interface HttpSink {
 }
 
 /**
- * Локальный HTTP-синк, записывающий всё, что в него присылают.
- * Используется как эндпоинт для http delivery-адаптера: адаптер делает
- * настоящий POST, а тест контролирует доставку по содержимому `requests`.
+ * Локальный HTTP-сервер записывает запросы адаптера доставки.
+ * Тест проверяет полученные данные через requests.
  */
 export function startHttpSink(): Promise<HttpSink> {
   const requests: RecordedRequest[] = [];

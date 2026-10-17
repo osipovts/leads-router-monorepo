@@ -12,8 +12,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   async onModuleInit(): Promise<void> {
-    // При выключенном database-канале DATABASE_URL по контракту isDeliveryEnabled может отсутствовать -
-    // соединение не открывается, первый запрос к клиенту всё равно невозможен
+    // При отключённой доставке в БД DATABASE_URL может отсутствовать.
+    // Соединение не открывается; адаптер пропускает отправку лида.
     if (!this.config.enabled) {
       return;
     }

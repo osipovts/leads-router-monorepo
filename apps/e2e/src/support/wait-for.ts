@@ -5,9 +5,8 @@ function isMet<T>(value: T): boolean {
 }
 
 /**
- * Периодически опрашивает `probe`, пока не вернётся truthy-значение, и возвращает его.
- * Бросает ошибку по истечении `timeoutMs` - это стандартный приём для ожидания
- * асинхронных эффектов (обработка BullMQ job, запись в БД и т.п.).
+ * Периодически вызывает probe, пока результат отличается от null, undefined и false.
+ * Возвращает результат или выбрасывает ошибку по истечении timeoutMs.
  */
 export async function waitFor<T>(probe: () => Promise<T> | T, timeoutMs = 10_000, label = 'condition'): Promise<T> {
   const deadline = Date.now() + timeoutMs;

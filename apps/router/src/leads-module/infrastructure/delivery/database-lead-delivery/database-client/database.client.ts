@@ -17,8 +17,8 @@ export class DatabaseClient extends PrismaRepository {
       await this.execute(() =>
         this.prisma.lead.create({
           data: {
-            // Лид вставляется со своим id: PK даёт идемпотентность -
-            // повторная доставка той же джобы не создаёт дубль
+            // Первичный ключ сохраняет id лида и защищает от повторной вставки
+            // при повторной обработке задачи.
             id: lead.id,
             name: lead.name,
             contact: lead.contact,

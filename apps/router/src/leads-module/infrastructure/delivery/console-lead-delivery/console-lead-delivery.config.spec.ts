@@ -2,7 +2,7 @@ import { ZodError } from 'zod';
 
 import { consoleLeadDeliveryConfig } from './console-lead-delivery.config';
 
-// Пока флаг адаптера не включён явно, конфиг-фабрика возвращает стаб и не парсит схему
+// Пока флаг адаптера не включён явно, фабрика конфигурации возвращает конфигурацию отключённого адаптера без проверки схемы
 // (см. libs/common delivery-enabled.ts)
 describe('consoleLeadDeliveryConfig', () => {
   const ENV_KEYS = ['CONSOLE_LEAD_DELIVERY_ENABLED'] as const;

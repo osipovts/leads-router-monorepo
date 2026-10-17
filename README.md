@@ -56,9 +56,9 @@ git clone https://github.com/osipovts/leads-router-monorepo.git
 
 ```bash
 cd leads-router-monorepo
-cp .env.example .env # здесь лежат инфраструктурные переменные - креды, порты
-cp apps/gateway/.env.example apps/gateway/.env # троттлинг, сваггер, bullmq
-cp apps/router/.env.example apps/router/.env # креды адаптеров (tg, pg, email)
+cp .env.example .env # здесь лежат инфраструктурные переменные - учётные данные, порты
+cp apps/gateway/.env.example apps/gateway/.env # лимиты запросов, Swagger, BullMQ
+cp apps/router/.env.example apps/router/.env # учётные данные адаптеров (Telegram, PostgreSQL, email)
 ```
 
 Запустите

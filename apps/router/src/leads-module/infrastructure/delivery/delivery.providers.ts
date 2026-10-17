@@ -19,7 +19,7 @@ interface DeliveryAdapter {
   readonly adapter: Type<LeadDeliveryPort>;
 }
 
-// Единственный список адаптеров доставки: новый канал добавляется одной записью
+// Модули и провайдеры адаптеров собираются из одного списка.
 const DELIVERY_ADAPTERS: readonly DeliveryAdapter[] = [
   { module: ConsoleLeadDeliveryModule, adapter: ConsoleLeadDeliveryAdapter },
   { module: DatabaseLeadDeliveryModule, adapter: DatabaseLeadDeliveryAdapter },
