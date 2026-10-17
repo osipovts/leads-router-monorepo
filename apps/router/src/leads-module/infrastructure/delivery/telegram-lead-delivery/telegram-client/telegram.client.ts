@@ -8,7 +8,8 @@ export class TelegramClient {
   private readonly bot: Bot;
 
   constructor(@Inject(telegramClientConfig.KEY) config: TelegramClientConfigType) {
-    this.bot = new Bot(config.token);
+    // Дефолтный таймаут транспорта (5 минут) подвешивал бы воркерскую джобу на всё это время
+    this.bot = new Bot(config.token, { timeoutMs: 10_000 });
   }
 
   async sendMessage(chatId: string, text: string): Promise<void> {

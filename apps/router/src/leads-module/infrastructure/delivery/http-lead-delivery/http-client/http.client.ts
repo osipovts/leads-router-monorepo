@@ -87,7 +87,7 @@ export class HttpClient {
 
       this.logger.error(
         `<- ${method} ${url} ${status?.toString() ?? String(error)} duration=${duration.toString()}ms`,
-        responseData == true ? JSON.stringify(responseData) : error.message,
+        responseData != null ? JSON.stringify(responseData) : error.message,
       );
 
       return;
