@@ -1,41 +1,26 @@
 # О проекте
 
-Бэкенд для приема лид-форм и отправки их в различные приемники: PostgreSQL, Telegram, email, console и другие адаптеры.
-В монорепе также лежит минимальный пример фронтенда — `apps/frontend`.
+Бэкенд для приема лид-форм и отправки их в различные приемники: PostgreSQL, Telegram, email и другие адаптеры. В
+монорепе также лежит минимальный пример фронтенда — `apps/frontend`.
 
 ## Архитектура
 
-```text
-                         ┌─────────────────────┐
-                         │       Gateway       │
-                         │                     │
-                         │ Validation          │
-                         │ Rate limiting       │
-                         └──────────┬──────────┘
-                                    │
-                                    │ enqueue
-                                    ▼
-                         ┌─────────────────────┐
-                         │        Redis        │
-                         │       BullMQ        │
-                         └──────────┬──────────┘
-                                    │
-                                    ▼
-                         ┌─────────────────────┐
-                         │       Router        │
-                         │                     │
-                         │ Job processing      │
-                         │ Idempotency         │
-                         └──────────┬──────────┘
-                                    │
-                   ┌────────────────┼────────────────┐
-                   │                │                │
-                   ▼                ▼                ▼
-             ┌──────────┐     ┌──────────┐    ┌──────────┐
-             │ Telegram │     │PostgreSQL│    │   ...    │
-             │ Adapter  │     │ Adapter  │    │ Adapter  │
-             └──────────┘     └──────────┘    └──────────┘
 ```
+  [ Gateway ] ──► [ BullMQ/Redis ] ──► [ Router ]
+                                            │
+        ┌────────────┬──────────────┬───────┴──────┐
+        ▼            ▼              ▼              ▼
+     [ DB ]     [ Telegram ]    [ Email ]       [ HTTP ] ──► [ Gateway: Каскад ]
+```
+
+## Каскад
+
+HTTP-адаптер позволяет строить цепочки инстансов: в `HTTP_LEAD_DELIVERY_ENDPOINTS` можно указать один или несколько
+эндпоинтов `POST /api/v1/leads` на других серверах-инстансах, организовав таким образом каскад.
+
+Каскад может быть полезен для отправки лидов из РФ в Telegram и другие деградировавшие в стране сервисы: входной узел на
+российском сервере принимает лид (там же можно его сохранить в БД-адаптере чтобы он точно не потерялся), затем через
+HTTP-адаптер лид отправляется на зарубежный инстанс, и оттуда уходит в Telegram.
 
 ## Быстрый запуск
 
@@ -45,67 +30,34 @@
 git clone https://github.com/osipovts/leads-router-monorepo.git
 ```
 
-Скопируйте `env.example` в `.env`. Базовые `.env.example` уже содержат хорошие значения по умолчанию, но при
-необходимости отредактируйте `.env`.
-
-Для отправки лидов в Telegram задайте токен telegram-бота и ID целевого чата в `apps/router/.env`. Для отправки по
-email задайте SMTP-настройки и адрес получателя в `apps/router/.env` (см. `apps/router/.env.example`) и включите
-`EMAIL_LEAD_DELIVERY_ENABLED`.
+Скопируйте `env.example` в `.env` и настройте проект.
 
 ```bash
 cd leads-router-monorepo
-cp .env.example .env # здесь лежат инфраструктурные переменные
-cp apps/gateway/.env.example apps/gateway/.env
-cp apps/router/.env.example apps/router/.env
+cp .env.example .env # здесь лежат инфраструктурные переменные - креды, порты
+cp apps/gateway/.env.example apps/gateway/.env # троттлинг, сваггер, bullmq
+cp apps/router/.env.example apps/router/.env # креды адаптеров (tg, pg, email)
 ```
-
-Перед запуском замените `REDIS_PASSWORD` и `POSTGRES_PASSWORD` в корневом `.env` на длинные случайные пароли. Пароль
-PostgreSQL в `apps/router/.env` должен совпадать со значением `POSTGRES_PASSWORD`.
 
 Запустите
 
 ```bash
-docker compose up
+docker compose up --build
 ```
 
 После запуска будут доступны:
 
 1. Пример фронтенда на [http://localhost:5173](http://localhost:5173)
-2. Swagger UI на [http://localhost:3000](http://localhost:3000)
+2. Swagger UI на [http://localhost:3000](http://localhost:3000). Можно отключить в `app/gateway/.env`
 3. Bull Dashboard на [http://localhost:4000](http://localhost:4000)
 
-`docker-compose.yml` содержит самодостаточную демо-конфигурацию: для полноценного production-использования он не
+`docker-compose.yml` содержит лишь самодостаточную демо-конфигурацию: для полноценного production-использования он не
 рекомендуется.
 
 # Фронтенд
 
-`apps/frontend` — минимальное React-приложение (Vite + TypeScript): форма отправки лида на `POST /api/v1/leads` с
-показом результата. Порт фронтенда настраивается переменной `FRONTEND_FORWARD_PORT` в корневом `.env`
-(по умолчанию `5173`).
-
-## Запуск в докере
-
-Входит в стандартный `docker compose up` (см. «Быстрый запуск»): сервис `frontend` собирается stage-ом `frontend`
-из `Dockerfile` — приложение собирается Vite, статика раздается nginx, который проксирует запросы `/api/*` на
-сервис `gateway` (CORS на gateway не включен, поэтому прокси обязателен).
-
-Пересобрать только фронтенд:
-
-```bash
-docker compose up --build frontend
-```
-
-## Запуск без докера
-
-Для разработки фронтенд удобнее запускать отдельно, без пересборки образа:
-
-```bash
-pnpm install          # в корне монорепы
-pnpm start:frontend   # dev-сервер Vite на http://localhost:5173
-```
-
-Vite dev-сервер проксирует `/api` на `http://localhost:3000`, поэтому gateway должен быть запущен
-(`pnpm start:dev` в корне монорепы или `docker compose up gateway redis`).
+`apps/frontend` - минимальное React-приложение (Vite + TS): форма отправки лида на `POST /api/v1/leads` с показом
+результата. Порт фронтенда настраивается переменной `FRONTEND_FORWARD_PORT` в корневом `.env` (по умолчанию `5173`).
 
 # Тесты
 
@@ -114,9 +66,6 @@ Vite dev-сервер проксирует `/api` на `http://localhost:3000`, 
 TBD
 
 ## E2E-тесты
-
-E2E тесты реализованы в виде отдельной апп-ки `apps/e2e` что бы не тащить тяжелые тестовые зависимости (`testcontainers`
-и тому подобное) и не замусоривать основные приложения.
 
 Запуск e2e-тестов:
 
