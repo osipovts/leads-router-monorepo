@@ -31,7 +31,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 RUN pnpm --filter @leads-router/router prisma:generate \
   && pnpm --filter @leads-router/common build \
   && pnpm --filter @leads-router/gateway build \
-  && pnpm --filter @leads-router/router build
+  && pnpm --filter @leads-router/router build \
+  && pnpm --filter @leads-router/frontend build
 
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
   --mount=type=cache,id=pnpm-metadata,target=/root/.cache/pnpm \
@@ -56,3 +57,8 @@ ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build --chown=65532:65532 /prod/router ./
 CMD ["dist/main.js"]
+
+# --- RUN: frontend ---
+FROM nginx:alpine AS frontend
+COPY apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /workspace/apps/frontend/dist /usr/share/nginx/html

@@ -75,6 +75,15 @@ services:
       redis:
         condition: service_healthy
 
+  frontend:
+    build:
+      target: frontend
+    restart: unless-stopped
+    ports:
+      - '${FRONTEND_FORWARD_PORT:-5173}:80'
+    depends_on:
+      - gateway
+
   migrate:
     build:
       target: migrate

@@ -1,6 +1,7 @@
 # О проекте
 
 Бэкенд для приема лид-форм и отправки их в различные приемники: PostgreSQL, Telegram, email, console и другие адаптеры.
+В монорепе также лежит минимальный пример фронтенда — `apps/frontend`.
 
 ## Архитектура
 
@@ -69,11 +70,42 @@ docker compose up
 
 После запуска будут доступны:
 
-1. Swagger UI на [http://localhost:3000](http://localhost:3000)
-2. Bull Dashboard на [http://localhost:4000](http://localhost:4000)
+1. Пример фронтенда на [http://localhost:5173](http://localhost:5173)
+2. Swagger UI на [http://localhost:3000](http://localhost:3000)
+3. Bull Dashboard на [http://localhost:4000](http://localhost:4000)
 
 `docker-compose.yml` содержит самодостаточную демо-конфигурацию: для полноценного production-использования он не
 рекомендуется.
+
+# Фронтенд
+
+`apps/frontend` — минимальное React-приложение (Vite + TypeScript): форма отправки лида на `POST /api/v1/leads` с
+показом результата. Порт фронтенда настраивается переменной `FRONTEND_FORWARD_PORT` в корневом `.env`
+(по умолчанию `5173`).
+
+## Запуск в докере
+
+Входит в стандартный `docker compose up` (см. «Быстрый запуск»): сервис `frontend` собирается stage-ом `frontend`
+из `Dockerfile` — приложение собирается Vite, статика раздается nginx, который проксирует запросы `/api/*` на
+сервис `gateway` (CORS на gateway не включен, поэтому прокси обязателен).
+
+Пересобрать только фронтенд:
+
+```bash
+docker compose up --build frontend
+```
+
+## Запуск без докера
+
+Для разработки фронтенд удобнее запускать отдельно, без пересборки образа:
+
+```bash
+pnpm install          # в корне монорепы
+pnpm start:frontend   # dev-сервер Vite на http://localhost:5173
+```
+
+Vite dev-сервер проксирует `/api` на `http://localhost:3000`, поэтому gateway должен быть запущен
+(`pnpm start:dev` в корне монорепы или `docker compose up gateway redis`).
 
 # Тесты
 
