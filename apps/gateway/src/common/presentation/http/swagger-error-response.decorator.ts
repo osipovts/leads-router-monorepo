@@ -76,24 +76,27 @@ export function ApiTooManyRequestsErrorResponse(): MethodDecorator {
   );
 }
 
-export function ApiQueueUnavailableErrorResponse(): MethodDecorator {
+export function ApiEnqueueFailedErrorResponse(): MethodDecorator {
   return applyDecorators(
     ApiExtraModels(ErrorHttpResponseDto, ErrorDto),
     ApiServiceUnavailableResponse({
-      description: 'Очередь временно недоступна',
+      description: 'Постановка лида в очередь не удалась для одного или нескольких каналов',
       content: {
         'application/json': {
           schema: errorResponseSchema,
           examples: {
-            queueUnavailable: {
-              summary: 'Нет соединения с Redis',
+            enqueueFailed: {
+              summary: 'Постановка в очередь не удалась (например, при недоступности Redis)',
               value: {
                 success: false,
                 error: {
                   layer: 'INFRASTRUCTURE',
                   module: 'LEADS',
-                  error: 'QueueUnavailableException',
-                  message: 'Queue service is temporarily unavailable',
+                  error: 'EnqueueFailedException',
+                  message: 'Lead enqueue failed for channel(s): console, database, telegram, http, email',
+                  details: {
+                    failedChannels: ['console', 'database', 'telegram', 'http', 'email'],
+                  },
                 },
               },
             },
