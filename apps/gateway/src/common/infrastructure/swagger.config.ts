@@ -3,7 +3,7 @@ import { registerAs } from '@nestjs/config';
 import z from 'zod';
 
 const swaggerConfigSchema = z.object({
-  APP_SWAGGER_ENABLE: z.coerce.boolean().default(false),
+  APP_SWAGGER_ENABLE: z.stringbool().default(false),
   APP_SWAGGER_API_DOCS: z.string().trim().min(1).default('api/docs'),
   APP_SWAGGER_API_JSON_DOCS: z.string().trim().min(1).default('api/json-docs'),
 });
