@@ -16,9 +16,9 @@ pnpm test:e2e # из корня монорепы
 
 - **Инфраструктура**: testcontainers стартует реальные `postgres:18-alpine` и `redis:8-alpine`; призма-миграции
   применяются `prisma migrate deploy` к тестовой базе.
-- **Приложения in-process**: gateway бутстрапится как HTTP-приложение (без listen, запросы идут через supertest по
-  `app.getHttpServer()`), router — как application context. BullMQ связывает их через тестовый redis ровно как в
-  продакшене.
+- **Приложения in-process**: gateway запускается как HTTP-приложение на случайном локальном порту; supertest
+  отправляет запросы через `app.getHttpServer()`. Сервер остаётся открытым для параллельных запросов до конца прогона.
+  Router запускается как application context. BullMQ связывает приложения через тестовый Redis.
 - **Контроль доставки**:
   - database — реальная запись, проверяется запросом через `PrismaService`;
   - http — `HTTP_LEAD_DELIVERY_ENDPOINTS` указывает на локальный sink-сервер, который записывает всё присланное;

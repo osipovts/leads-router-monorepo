@@ -3,7 +3,6 @@ import { Logger } from '@nestjs/common';
 
 import type { LeadsQueueConfigType } from '../../leads.config';
 import { EnqueueFailedException } from '../exceptions/enqueue-failed.exception';
-import type { LeadDeduplicationPort } from '../ports/lead-deduplication.port';
 import type { QueuePort } from '../ports/queue.port';
 import { BroadcastLeadUseCase } from './broadcast-lead.use-case';
 
@@ -28,101 +27,81 @@ class QueueFake implements QueuePort {
   }
 }
 
-class DeduplicationFake implements LeadDeduplicationPort {
-  firstSeen = true;
-  readonly released: string[] = [];
-
-  tryAcquire(): Promise<boolean> {
-    return Promise.resolve(this.firstSeen);
-  }
-
-  release(id: string): Promise<void> {
-    this.released.push(id);
-    return Promise.resolve();
-  }
-}
-
-// Ключевая логика идемпотентности: первый POST ставит маркер и рассылает во все каналы,
-// дубль пропускается, частичная неудача enqueue снимает маркер и фейлит запрос
 describe('BroadcastLeadUseCase', () => {
-  let loggerLog: jest.SpyInstance;
-  let loggerWarn: jest.SpyInstance;
+  let loggerLog: jest.SpiedFunction<Logger['log']>;
   let queue: QueueFake;
-  let deduplication: DeduplicationFake;
   let useCase: BroadcastLeadUseCase;
 
   const makeLead = (): LeadEntity => LeadEntity.generate('Иван', 'ivan@example.com', 'hello');
 
-  beforeAll(() => {
-    loggerLog = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
-    loggerWarn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  beforeAll((): void => {
+    loggerLog = jest.spyOn(Logger.prototype, 'log').mockImplementation((): void => undefined);
   });
 
-  afterAll(() => {
+  afterAll((): void => {
     loggerLog.mockRestore();
-    loggerWarn.mockRestore();
   });
 
-  beforeEach(() => {
+  beforeEach((): void => {
     queue = new QueueFake();
-    deduplication = new DeduplicationFake();
-    useCase = new BroadcastLeadUseCase(CONFIG, queue, deduplication);
+    useCase = new BroadcastLeadUseCase(CONFIG, queue);
   });
 
-  it('enqueues a first-seen lead to every channel with retry options', async () => {
+  it('enqueues a lead to every channel with retry options', async (): Promise<void> => {
     const lead = makeLead();
 
     await useCase.execute(lead);
 
-    expect(queue.sent.map(({ channel }) => channel)).toEqual(Object.values(ChannelEnum));
+    expect(queue.sent.map(({ channel }): ChannelEnum => channel)).toEqual(Object.values(ChannelEnum));
     for (const entry of queue.sent) {
       expect(entry.lead).toBe(lead);
       expect(entry.attempts).toBe(CONFIG.attempts);
       expect(entry.backoff).toBe(CONFIG.backoff);
     }
-    expect(deduplication.released).toEqual([]);
   });
 
-  it('skips broadcast and keeps the marker for a duplicate lead', async () => {
-    deduplication.firstSeen = false;
-
-    await useCase.execute(makeLead());
-
-    expect(queue.sent).toEqual([]);
-    expect(deduplication.released).toEqual([]);
-    expect(loggerWarn).toHaveBeenCalled();
-  });
-
-  it('releases the marker and fails when some channels fail to enqueue', async () => {
+  it('reports failed channels and allows retrying the same lead', async (): Promise<void> => {
     queue.failChannels.add(ChannelEnum.TELEGRAM);
     queue.failChannels.add(ChannelEnum.EMAIL);
     const lead = makeLead();
 
-    await expect(useCase.execute(lead)).rejects.toBeInstanceOf(EnqueueFailedException);
     await expect(useCase.execute(lead)).rejects.toMatchObject({
       details: { failedChannels: [ChannelEnum.TELEGRAM, ChannelEnum.EMAIL] },
     });
 
-    // Маркер снят после каждой неудачи, чтобы повтор запроса с тем же id дошёл до каналов
-    expect(deduplication.released).toEqual([lead.id, lead.id]);
-    // Каналы с успешным enqueue лид всё же получили (повтор запроса продублирует их -
-    // это документированная семантика at-least-once)
-    expect(queue.sent.map(({ channel }) => channel)).toEqual([
-      ChannelEnum.CONSOLE,
-      ChannelEnum.DATABASE,
-      ChannelEnum.HTTP,
-      ChannelEnum.CONSOLE,
-      ChannelEnum.DATABASE,
-      ChannelEnum.HTTP,
-    ]);
+    queue.failChannels.clear();
+    await useCase.execute(lead);
+
+    expect(queue.sent.filter(({ channel }): boolean => channel === ChannelEnum.TELEGRAM)).toHaveLength(1);
+    expect(queue.sent.filter(({ channel }): boolean => channel === ChannelEnum.EMAIL)).toHaveLength(1);
   });
 
-  it('throws an infrastructure exception when every channel fails', async () => {
+  it('does not acknowledge concurrent requests before their enqueue operations finish', async (): Promise<void> => {
+    let rejectEnqueue!: (reason: Error) => void;
+    const enqueue = new Promise<void>((_resolve, reject): void => {
+      rejectEnqueue = reject;
+    });
+    const send = jest.spyOn(queue, 'sendLead').mockReturnValue(enqueue);
+    const lead = makeLead();
+    const requests = Promise.allSettled([useCase.execute(lead), useCase.execute(lead)]);
+
+    expect(send).toHaveBeenCalledTimes(Object.values(ChannelEnum).length * 2);
+    rejectEnqueue(new Error('Redis unavailable'));
+
+    const results = await requests;
+    for (const result of results) {
+      expect(result.status).toBe('rejected');
+      if (result.status === 'rejected') {
+        expect(result.reason).toBeInstanceOf(EnqueueFailedException);
+      }
+    }
+  });
+
+  it('throws an infrastructure exception when every channel fails', async (): Promise<void> => {
     for (const channel of Object.values(ChannelEnum)) {
       queue.failChannels.add(channel);
     }
 
     await expect(useCase.execute(makeLead())).rejects.toBeInstanceOf(InfrastructureException);
-    expect(deduplication.released).toHaveLength(1);
   });
 });

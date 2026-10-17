@@ -2,10 +2,13 @@ import { execFileSync } from 'node:child_process';
 import type { Server as HttpServer } from 'node:http';
 import { join } from 'node:path';
 
+import { ChannelEnum, LeadEntity, QUEUES, type SendLeadJob } from '@leads-router/common';
+import { getQueueToken } from '@nestjs/bullmq';
+import type { Queue } from 'bullmq';
 import request from 'supertest';
 import { GenericContainer, type StartedTestContainer, Wait } from 'testcontainers';
 
-import { VersioningType } from '../../gateway/node_modules/@nestjs/common';
+import { type INestApplication, VersioningType } from '../../gateway/node_modules/@nestjs/common';
 // Импорт из дерева gateway гарантирует тот же самый экземпляр @nestjs/core,
 // которым бутстрапится само приложение: две копии Nest в одном процессе
 // сломали бы DI-контейнеры и instanceof-проверки
@@ -43,7 +46,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
   let postgres!: StartedTestContainer;
   let redis!: StartedTestContainer;
   let http!: HttpSink;
-  let gatewayApp!: Awaited<ReturnType<typeof NestFactory.create>>;
+  let gatewayApp!: INestApplication<HttpServer>;
   let routerApp!: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>;
   let prisma!: PrismaService;
   let telegramApi!: TelegramApiSink;
@@ -52,6 +55,15 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
 
   let leadSeq = 0;
   let smtp!: SmtpSink;
+  let leadsQueue!: Queue<SendLeadJob>;
+
+  const queuedChannels = async (id: string): Promise<ChannelEnum[]> => {
+    const jobs = await leadsQueue.getJobs(['waiting', 'active', 'delayed', 'completed', 'failed']);
+    return jobs
+      .filter((job): boolean => job.data.lead.id === id)
+      .map((job): ChannelEnum => job.data.channel)
+      .sort();
+  };
 
   const postLead = async (
     label: string,
@@ -66,7 +78,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       message: `integration test lead (${label})`,
     };
 
-    const response = await request(gatewayApp.getHttpServer() as HttpServer)
+    const response = await request(gatewayApp.getHttpServer())
       .post('/api/v1/leads')
       .send(lead)
       .expect(201);
@@ -135,13 +147,15 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
 
     // Bootstrap повторяет gateway main.ts: versioning, префикс и глобальные
     // pipe/interceptor/filter регистрируются там, а не в AppModule
-    gatewayApp = await NestFactory.create(GatewayAppModule);
+    gatewayApp = await NestFactory.create<INestApplication<HttpServer>>(GatewayAppModule);
     gatewayApp.enableVersioning({ type: VersioningType.URI });
     gatewayApp.setGlobalPrefix('api');
     gatewayApp.useGlobalFilters(new HttpExceptionFilter());
     gatewayApp.useGlobalInterceptors(new HttpLoggingInterceptor());
     gatewayApp.useGlobalPipes(new HttpValidationPipe());
-    await gatewayApp.init();
+    // Общий сервер остаётся открытым до afterAll, в том числе для параллельных запросов supertest.
+    await gatewayApp.listen(0, '127.0.0.1');
+    leadsQueue = gatewayApp.get<Queue<SendLeadJob>>(getQueueToken(QUEUES.LEADS.QUEUE_NAME));
 
     routerApp = await NestFactory.createApplicationContext(RouterAppModule);
     prisma = routerApp.get(PrismaService);
@@ -174,7 +188,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     });
 
     it('rejects an invalid lead with a validation error', async () => {
-      const response = await request(gatewayApp.getHttpServer() as HttpServer)
+      const response = await request(gatewayApp.getHttpServer())
         .post('/api/v1/leads')
         .send({ name: '' })
         .expect(400);
@@ -278,6 +292,58 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
 
   // Idempotency tests
   describe('idempotency', () => {
+    it('deduplicates concurrent requests independently for every channel', async (): Promise<void> => {
+      const lead = LeadEntity.generate('Concurrent', 'concurrent@test.local', 'hello');
+
+      await Promise.all([
+        request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201),
+        request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201),
+      ]);
+
+      expect(await queuedChannels(lead.id)).toEqual(Object.values(ChannelEnum).sort());
+    });
+
+    it('retries missing channels without duplicating accepted jobs after a partial failure', async (): Promise<void> => {
+      const lead = LeadEntity.generate('Retry', 'retry@test.local', 'hello');
+      const realAdd = leadsQueue.add.bind(leadsQueue);
+      const add = jest.spyOn(leadsQueue, 'add').mockImplementation((name, data, options): ReturnType<typeof realAdd> => {
+        if (data.lead.id === lead.id && data.channel === ChannelEnum.EMAIL) {
+          return Promise.reject(new Error('simulated enqueue failure'));
+        }
+        return realAdd(name, data, options);
+      });
+
+      try {
+        await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(503);
+        expect(await queuedChannels(lead.id)).toEqual(
+          Object.values(ChannelEnum).filter((channel): boolean => channel !== ChannelEnum.EMAIL).sort(),
+        );
+      } finally {
+        add.mockRestore();
+      }
+
+      await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
+      expect(await queuedChannels(lead.id)).toEqual(Object.values(ChannelEnum).sort());
+    });
+
+    it('does not acknowledge either concurrent request when all enqueue operations fail', async (): Promise<void> => {
+      const lead = LeadEntity.generate('Unavailable', 'unavailable@test.local', 'hello');
+      const add = jest.spyOn(leadsQueue, 'add').mockRejectedValue(new Error('simulated Redis outage'));
+
+      try {
+        await Promise.all([
+          request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(503),
+          request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(503),
+        ]);
+        expect(await queuedChannels(lead.id)).toEqual([]);
+      } finally {
+        add.mockRestore();
+      }
+
+      await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
+      expect(await queuedChannels(lead.id)).toEqual(Object.values(ChannelEnum).sort());
+    });
+
     it('skips broadcast for a duplicate lead posted with the same id', async () => {
       const { lead, response } = await postLead('idempotency');
       const id = (response.body as { data: { id: string } }).data.id;
@@ -289,7 +355,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       );
 
       // Повтор запроса с тем же id (как ретрай клиента или пересылка каскадом)
-      const duplicate = await request(gatewayApp.getHttpServer() as HttpServer)
+      const duplicate = await request(gatewayApp.getHttpServer())
         .post('/api/v1/leads')
         .send({ id, ...lead })
         .expect(201);
