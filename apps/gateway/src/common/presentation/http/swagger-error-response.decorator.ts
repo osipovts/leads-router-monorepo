@@ -34,7 +34,7 @@ export function ApiValidationErrorResponse(): MethodDecorator {
               value: {
                 success: false,
                 error: {
-                  layer: 'INFRASTRUCTURE',
+                  layer: 'PRESENTATION',
                   module: 'COMMON',
                   error: 'BadRequestException',
                   message: 'name must be longer than or equal to 2 characters',
@@ -62,7 +62,7 @@ export function ApiTooManyRequestsErrorResponse(): MethodDecorator {
               value: {
                 success: false,
                 error: {
-                  layer: 'INFRASTRUCTURE',
+                  layer: 'PRESENTATION',
                   module: 'COMMON',
                   error: 'ThrottlerException',
                   message: 'ThrottlerException: Too Many Requests',

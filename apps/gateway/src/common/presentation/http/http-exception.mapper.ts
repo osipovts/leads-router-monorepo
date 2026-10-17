@@ -36,7 +36,7 @@ export function mapHttpException(exception: unknown): HttpExceptionMapping {
     return {
       status: exception.getStatus(),
       error: {
-        layer: LayerEnum.INFRASTRUCTURE,
+        layer: LayerEnum.PRESENTATION,
         module: ModuleEnum.COMMON,
         error: exception.constructor.name,
         message: httpExceptionMessage(exception),
