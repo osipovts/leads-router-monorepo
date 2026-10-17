@@ -27,7 +27,7 @@ function invalidOf(overrides: Partial<LeadPayload>): InvalidLeadException {
 }
 
 function violationsOf(overrides: Partial<LeadPayload>): Record<string, string> {
-  return invalidOf(overrides).details.violations as Record<string, string>;
+  return invalidOf(overrides).details.violations;
 }
 
 describe('LeadEntity', () => {
@@ -82,10 +82,13 @@ describe('LeadEntity', () => {
     });
 
     it('rejects a non-string field', () => {
-      expect(violationsOf({ name: 42 as unknown as string }).name).toBe('must be a string');
+      const payload = { ...VALID };
+      Reflect.set(payload, 'name', 42);
+
+      expect(violationsOf(payload).name).toBe('must be a string');
     });
 
-    it.each([
+    it.each<[keyof LeadPayload, string, string]>([
       ['name', '', 'must be at least 1 character(s) long'],
       ['name', 'a'.repeat(65), 'must be at most 64 character(s) long'],
       ['name', 'bad\rname', 'must not contain control characters'],
@@ -96,8 +99,8 @@ describe('LeadEntity', () => {
       ['message', '', 'must be at least 1 character(s) long'],
       ['message', 'm'.repeat(2049), 'must be at most 2048 character(s) long'],
       ['message', 'carriage\rreturn', 'must not contain control characters'],
-    ])('rejects an invalid %s value', (field, value, expected) => {
-      const overrides = { [field]: value } as Partial<LeadPayload>;
+    ])('rejects an invalid %s value', (field, value, expected): void => {
+      const overrides: Partial<LeadPayload> = { [field]: value };
 
       expect(violationsOf(overrides)[field]).toBe(expected);
     });

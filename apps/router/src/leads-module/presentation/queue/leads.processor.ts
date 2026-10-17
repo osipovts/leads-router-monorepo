@@ -11,7 +11,7 @@ export class LeadsProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<SendLeadJob>): Promise<void> {
+  async process(job: Pick<Job<SendLeadJob>, 'name' | 'data'>): Promise<void> {
     switch (job.name) {
       case QUEUES.LEADS.JOBS.SEND: {
         let lead: LeadEntity;
@@ -19,7 +19,7 @@ export class LeadsProcessor extends WorkerHost {
         try {
           lead = LeadEntity.from(job.data.lead);
         } catch (error: unknown) {
-          // Битый payload не станет валидным после ретрая - фейлим джобу сразу
+          // Повторная обработка не исправит некорректные данные: задача завершается без повторов.
           throw new UnrecoverableError(JSON.stringify(Exception.toJSON(error)));
         }
 

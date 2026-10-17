@@ -1,24 +1,26 @@
 import { LayerEnum, ModuleEnum } from '@leads-router/common';
-import type { ArgumentsHost} from '@nestjs/common';
 import { BadRequestException, HttpStatus, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { ExecutionContextHost } from '@nestjs/core/helpers/execution-context-host';
 
 import { HttpExceptionFilter } from './http-exception.filter';
 
-function createHost(): { host: ArgumentsHost; status: jest.Mock; json: jest.Mock } {
-  const json = jest.fn();
-  const status = jest.fn().mockReturnValue({ json });
-
-  const host = {
-    switchToHttp: () => ({
-      getRequest: () => ({ method: 'POST', url: '/api/v1/leads' }),
-      getResponse: () => ({ status, json }),
-    }),
-  } as unknown as ArgumentsHost;
-
-  return { host, status, json };
+interface TestResponse {
+  json: jest.Mock<unknown, [unknown]>;
+  status: jest.Mock<TestResponse, [number]>;
 }
 
-// 4xx - ошибка клиента и логируется warn-ом без стека; 5xx - error со стеком
+function createHost(): { host: ExecutionContextHost; status: TestResponse['status']; json: TestResponse['json'] } {
+  const response: TestResponse = {
+    json: jest.fn<unknown, [unknown]>(),
+    status: jest.fn<TestResponse, [number]>(),
+  };
+  response.status.mockReturnValue(response);
+  const host = new ExecutionContextHost([{ method: 'POST', url: '/api/v1/leads' }, response]);
+
+  return { host, status: response.status, json: response.json };
+}
+
+// Ответы 4xx записываются на уровне warn без стека; ответы 5xx — на уровне error со стеком.
 describe('HttpExceptionFilter', () => {
   let loggerWarn: jest.SpyInstance;
   let loggerError: jest.SpyInstance;

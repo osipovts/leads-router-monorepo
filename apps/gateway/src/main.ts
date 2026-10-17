@@ -1,7 +1,7 @@
 import { Logger, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import type { Express } from 'express';
 
 import type { AppConfigType } from './app.config';
 import { appConfig } from './app.config';
@@ -13,7 +13,7 @@ import { HttpLoggingInterceptor } from './common/presentation/http/http-logging.
 import { HttpValidationPipe } from './common/presentation/http/http-validation.pipe';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // API version
   app.enableVersioning({ type: VersioningType.URI });
@@ -42,8 +42,7 @@ async function bootstrap(): Promise<void> {
 
   // За reverse-proxy без этого rate limiter видит IP прокси, и все клиенты делят один лимит
   if (trustProxyHops > 0) {
-    const express = app.getHttpAdapter().getInstance() as Express;
-    express.set('trust proxy', trustProxyHops);
+    app.set('trust proxy', trustProxyHops);
   }
 
   await app.listen(port, host);

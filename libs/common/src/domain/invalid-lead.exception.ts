@@ -3,7 +3,7 @@ import { DomainException } from '../exceptions';
 
 export class InvalidLeadException extends DomainException {
   public readonly module = ModuleEnum.COMMON;
-  public readonly details: Record<string, unknown>;
+  public readonly details: { violations: Record<string, string> };
 
   constructor(violations: Record<string, string>) {
     super();

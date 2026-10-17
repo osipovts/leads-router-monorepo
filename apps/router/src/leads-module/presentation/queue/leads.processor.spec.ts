@@ -1,8 +1,9 @@
 import { ChannelEnum, LayerEnum, LeadEntity, QUEUES, type SendLeadJob } from '@leads-router/common';
+import { Test, type TestingModule } from '@nestjs/testing';
 import type { Job } from 'bullmq';
 import { UnrecoverableError } from 'bullmq';
 
-import type { SendLeadUseCase } from '../../application/use-cases/send-lead.use-case';
+import { SendLeadUseCase } from '../../application/use-cases/send-lead.use-case';
 import { LeadsProcessor } from './leads.processor';
 
 class SendLeadUseCaseFake {
@@ -21,18 +22,26 @@ const VALID_PAYLOAD = {
   message: 'hello',
 } satisfies SendLeadJob['lead'];
 
-function makeJob(name: string, data: unknown): Job<SendLeadJob> {
-  return { name, data } as Job<SendLeadJob>;
+function makeJob(name: string, data: SendLeadJob): Pick<Job<SendLeadJob>, 'name' | 'data'> {
+  return { name, data };
 }
 
-// Payload из очереди не доверяется: битый лид и неизвестное имя джобы - UnrecoverableError без ретраев
+// Некорректный лид и неизвестное имя задачи приводят к UnrecoverableError без повторов.
 describe('LeadsProcessor', () => {
   let useCase: SendLeadUseCaseFake;
   let processor: LeadsProcessor;
+  let module: TestingModule;
 
-  beforeEach(() => {
+  beforeEach(async (): Promise<void> => {
     useCase = new SendLeadUseCaseFake();
-    processor = new LeadsProcessor(useCase as unknown as SendLeadUseCase);
+    module = await Test.createTestingModule({
+      providers: [LeadsProcessor, { provide: SendLeadUseCase, useValue: useCase }],
+    }).compile();
+    processor = module.get(LeadsProcessor);
+  });
+
+  afterEach(async (): Promise<void> => {
+    await module.close();
   });
 
   it('rehydrates the lead entity and dispatches it to the use case', async () => {
@@ -45,9 +54,11 @@ describe('LeadsProcessor', () => {
   });
 
   it('fails a corrupted payload as unrecoverable with the domain error JSON', async () => {
+    const lead = { ...VALID_PAYLOAD };
+    Reflect.set(lead, 'name', 42);
     const job = makeJob(QUEUES.LEADS.JOBS.SEND, {
       channel: ChannelEnum.CONSOLE,
-      lead: { ...VALID_PAYLOAD, name: 42 as unknown as string },
+      lead,
     });
 
     const error: unknown = await processor.process(job).then(
@@ -56,14 +67,17 @@ describe('LeadsProcessor', () => {
     );
 
     expect(error).toBeInstanceOf(UnrecoverableError);
-    const parsed = JSON.parse((error as UnrecoverableError).message) as { layer: string; error: string };
-    expect(parsed.layer).toBe(LayerEnum.DOMAIN);
-    expect(parsed.error).toBe('InvalidLeadException');
+    if (!(error instanceof UnrecoverableError)) {
+      throw new Error('expected UnrecoverableError');
+    }
+    const parsed: unknown = JSON.parse(error.message);
+    expect(parsed).toMatchObject({ layer: LayerEnum.DOMAIN, error: 'InvalidLeadException' });
     expect(useCase.calls).toEqual([]);
   });
 
   it('fails an unknown job name as unrecoverable without dispatching', async () => {
-    await expect(processor.process(makeJob('unknown-job', {}))).rejects.toMatchObject({
+    const job = makeJob('unknown-job', { channel: ChannelEnum.CONSOLE, lead: VALID_PAYLOAD });
+    await expect(processor.process(job)).rejects.toMatchObject({
       message: "Unsupported job 'unknown-job'",
     });
     expect(useCase.calls).toEqual([]);
