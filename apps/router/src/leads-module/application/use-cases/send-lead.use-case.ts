@@ -21,7 +21,7 @@ export class SendLeadUseCase {
     }
 
     if (!adapter.enabled) {
-      this.logger.warn(`Lead delivery adapter for channel '${channel}' is disabled, skipping lead`);
+      this.logger.verbose(`Lead delivery adapter for channel '${channel}' is disabled, skipping lead`);
       return;
     }
 

@@ -48,7 +48,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
   let prisma!: PrismaService;
   let telegramApi!: TelegramApiSink;
   let adapterLog!: jest.SpyInstance;
-  let useCaseWarn!: jest.SpyInstance;
+  let useCaseVerbose!: jest.SpyInstance;
 
   let leadSeq = 0;
   let smtp!: SmtpSink;
@@ -129,7 +129,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     // Nest Logger захватывает ссылки на console при создании экземпляров,
     // поэтому надёжнее шпионить за prototype класса из дерева router
     adapterLog = jest.spyOn(RouterLogger.prototype, 'log').mockImplementation(() => undefined);
-    useCaseWarn = jest.spyOn(RouterLogger.prototype, 'warn').mockImplementation(() => undefined);
+    useCaseVerbose = jest.spyOn(RouterLogger.prototype, 'verbose').mockImplementation(() => undefined);
     jest.spyOn(console, 'log').mockImplementation(() => undefined);
     jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 
@@ -308,19 +308,19 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
 
   // Disabled channel test
   describe('disabled channels', () => {
-    it('router skips disabled telegram channel with warning', async () => {
+    it('router skips disabled telegram channel with a verbose log', async () => {
       // Канал включён глобально, поэтому адаптер отключается точечно:
       // тест проверяет пропуск лида в use-case, а не чтение конфига
       const enabled = jest.spyOn(TelegramLeadDeliveryAdapter.prototype, 'enabled', 'get').mockReturnValue(false);
 
       try {
-        // Warn не содержит идентификатора лида, поэтому тест фиксирует счётчик
+        // Verbose-лог не содержит идентификатора лида, поэтому тест фиксирует счётчик
         // вызовов до отправки и ждёт его увеличения
-        const warnsBefore = useCaseWarn.mock.calls.length;
+        const skipsBefore = useCaseVerbose.mock.calls.length;
 
         await postLead('telegram-skip');
 
-        await waitFor(() => useCaseWarn.mock.calls.length > warnsBefore, 10_000, 'telegram skip warning');
+        await waitFor(() => useCaseVerbose.mock.calls.length > skipsBefore, 10_000, 'telegram skip verbose log');
       } finally {
         enabled.mockRestore();
       }
