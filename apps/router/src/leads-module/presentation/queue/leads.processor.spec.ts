@@ -5,6 +5,7 @@ import { UnrecoverableError } from 'bullmq';
 
 import { UnsupportedLeadChannelException } from '../../application/exceptions/unsupported-lead-channel.exception';
 import { SendLeadUseCase } from '../../application/use-cases/send-lead.use-case';
+import { leadsWorkerConfig } from '../../leads.config';
 import { LeadsProcessor } from './leads.processor';
 
 class SendLeadUseCaseFake {
@@ -39,6 +40,7 @@ describe('LeadsProcessor', () => {
       providers: [
         LeadsProcessor,
         { provide: SendLeadUseCase, useValue: useCase },
+        { provide: leadsWorkerConfig.KEY, useValue: { concurrency: 1 } },
       ],
     }).compile();
     processor = module.get(LeadsProcessor);

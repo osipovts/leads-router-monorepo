@@ -87,6 +87,10 @@ docker compose up --build
 в памяти каждого gateway отдельно; общий лимит для нескольких реплик требует общего хранилища.
 Bull Dashboard требует `BULLBOARD_USER` и `BULLBOARD_PASSWORD` из корневого `.env`.
 
+При остановке router сначала завершает активные задачи, затем закрывает Prisma. Число параллельных задач задаётся
+через `LEADS_WORKER_CONCURRENCY` (по умолчанию 1). `ROUTER_STOP_GRACE_PERIOD` задаёт время ожидания Docker перед
+SIGKILL: по умолчанию 11 минут, с запасом относительно предельного `HTTP_CLIENT_TIMEOUT` в 10 минут.
+
 # Фронтенд
 
 `apps/frontend` - минимальное React-приложение (Vite + TS): форма отправки лида на `POST /api/v1/leads` с показом

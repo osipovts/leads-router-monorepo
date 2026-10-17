@@ -68,6 +68,7 @@ services:
       target: router
     restart: unless-stopped
     init: true
+    stop_grace_period: '${ROUTER_STOP_GRACE_PERIOD:-11m}'
     env_file:
       - ./apps/router/.env
     depends_on:

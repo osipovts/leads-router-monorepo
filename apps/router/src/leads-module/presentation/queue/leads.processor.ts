@@ -7,13 +7,14 @@ import {
   type SendLeadJob,
 } from '@leads-router/common';
 import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { type BeforeApplicationShutdown, Inject, Logger, type OnApplicationBootstrap } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { UnrecoverableError } from 'bullmq';
 import z from 'zod';
 
 import { SendLeadUseCase } from '../../application/use-cases/send-lead.use-case';
 import { isRetryableDeliveryError } from '../../infrastructure/delivery/is-retryable-delivery-error';
+import { type LeadsWorkerConfig, leadsWorkerConfig } from '../../leads.config';
 
 const channelSchema = z.enum(ChannelEnum);
 const metadataSchema = z.object({
@@ -22,11 +23,27 @@ const metadataSchema = z.object({
 });
 
 @Processor(QUEUES.LEADS.QUEUE_NAME)
-export class LeadsProcessor extends WorkerHost {
+export class LeadsProcessor extends WorkerHost implements OnApplicationBootstrap, BeforeApplicationShutdown {
   private readonly logger = new Logger(LeadsProcessor.name);
+  private initialized = false;
 
-  constructor(private readonly sendLeadUseCase: SendLeadUseCase) {
+  constructor(
+    private readonly sendLeadUseCase: SendLeadUseCase,
+    @Inject(leadsWorkerConfig.KEY) private readonly config: LeadsWorkerConfig,
+  ) {
     super();
+  }
+
+  onApplicationBootstrap(): void {
+    this.worker.concurrency = this.config.concurrency;
+    this.initialized = true;
+  }
+
+  async beforeApplicationShutdown(): Promise<void> {
+    // Prisma закрывается в следующей фазе, после завершения активных задач.
+    if (this.initialized) {
+      await this.worker.close();
+    }
   }
 
   async process(job: Pick<Job<SendLeadJob>, 'name' | 'data'>): Promise<void> {
