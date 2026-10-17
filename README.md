@@ -1,6 +1,6 @@
 # О проекте
 
-Бэкенд для приема лид-форм и отправки их в различные приемники: PostgreSQL, Telegram, console и другие адаптеры.
+Бэкенд для приема лид-форм и отправки их в различные приемники: PostgreSQL, Telegram, email, console и другие адаптеры.
 
 ## Архитектура
 
@@ -47,7 +47,9 @@ git clone https://github.com/osipovts/leads-router-monorepo.git
 Скопируйте `env.example` в `.env`. Базовые `.env.example` уже содержат хорошие значения по умолчанию, но при
 необходимости отредактируйте `.env`.
 
-Для отправки лидов в Telegram задайте токен telegram-бота и ID целевого чата в `apps/router/.env`.
+Для отправки лидов в Telegram задайте токен telegram-бота и ID целевого чата в `apps/router/.env`. Для отправки по
+email задайте SMTP-настройки и адрес получателя в `apps/router/.env` (см. `apps/router/.env.example`) и включите
+`EMAIL_LEAD_DELIVERY_ENABLED`.
 
 ```bash
 cd leads-router-monorepo

@@ -10,6 +10,8 @@ import { ConsoleLeadDeliveryAdapter } from './infrastructure/delivery/console-le
 import { ConsoleLeadDeliveryModule } from './infrastructure/delivery/console-lead-delivery/console-lead-delivery.module';
 import { DatabaseLeadDeliveryAdapter } from './infrastructure/delivery/database-lead-delivery/database-lead-delivery.adapter';
 import { DatabaseLeadDeliveryModule } from './infrastructure/delivery/database-lead-delivery/database-lead-delivery.module';
+import { EmailLeadDeliveryAdapter } from './infrastructure/delivery/email-lead-delivery/email-lead-delivery.adapter';
+import { EmailLeadDeliveryModule } from './infrastructure/delivery/email-lead-delivery/email-lead-delivery.module';
 import { HttpLeadDeliveryAdapter } from './infrastructure/delivery/http-lead-delivery/http-lead-delivery.adapter';
 import { HttpLeadDeliveryModule } from './infrastructure/delivery/http-lead-delivery/http-lead-delivery.module';
 import { TelegramLeadDeliveryAdapter } from './infrastructure/delivery/telegram-lead-delivery/telegram-lead-delivery.adapter';
@@ -23,6 +25,7 @@ import { LeadsProcessor } from './presentation/queue/leads.processor';
     DatabaseLeadDeliveryModule,
     TelegramLeadDeliveryModule,
     HttpLeadDeliveryModule,
+    EmailLeadDeliveryModule,
   ],
   providers: [
     {
@@ -32,6 +35,7 @@ import { LeadsProcessor } from './presentation/queue/leads.processor';
         DatabaseLeadDeliveryAdapter,
         TelegramLeadDeliveryAdapter,
         HttpLeadDeliveryAdapter,
+        EmailLeadDeliveryAdapter,
       ],
       useFactory: (...adapters: LeadDeliveryPort[]): ReadonlyMap<ChannelEnum, LeadDeliveryPort> =>
         new Map(adapters.map((adapter) => [adapter.channel, adapter] as const)),

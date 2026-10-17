@@ -7,9 +7,13 @@
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
+    "@types/mailparser": "^3.9.0",
     "@types/node": "^26.4.0",
+    "@types/smtp-server": "^3.5.13",
     "@types/supertest": "^7.2.1",
     "jest": "^30.5.2",
+    "mailparser": "^3.9.39",
+    "smtp-server": "^3.19.22",
     "supertest": "^7.2.2",
     "testcontainers": "^12.1.0",
     "ts-jest": "^29.4.12",

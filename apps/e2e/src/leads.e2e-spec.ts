@@ -21,7 +21,8 @@ import { AppModule as RouterAppModule } from '../../router/src/app.module';
 import { PrismaService } from '../../router/src/common/infrastructure/prisma/prisma.service';
 import { TelegramLeadDeliveryAdapter } from '../../router/src/leads-module/infrastructure/delivery/telegram-lead-delivery/telegram-lead-delivery.adapter';
 import { type HttpSink, startHttpSink } from './support/http-sink';
-import { type TelegramApiSink, startTelegramApiSink } from './support/telegram-api-sink';
+import { type SmtpSink, startSmtpSink } from './support/smtp-sink';
+import { startTelegramApiSink, type TelegramApiSink } from './support/telegram-api-sink';
 import { waitFor } from './support/wait-for';
 
 jest.setTimeout(240_000);
@@ -31,7 +32,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
   // если beforeAll упал, поэтому в самих тестах они гарантированно заполнены
   let postgres!: StartedTestContainer;
   let redis!: StartedTestContainer;
-  let sink!: HttpSink;
+  let http!: HttpSink;
   let gatewayApp!: Awaited<ReturnType<typeof NestFactory.create>>;
   let routerApp!: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>;
   let prisma!: PrismaService;
@@ -40,6 +41,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
   let useCaseWarn!: jest.SpyInstance;
 
   let leadSeq = 0;
+  let smtp!: SmtpSink;
 
   const postLead = async (
     label: string,
@@ -82,7 +84,8 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       stdio: 'pipe',
     });
 
-    sink = await startHttpSink();
+    http = await startHttpSink();
+    smtp = await startSmtpSink();
 
     // Оба приложения читают process.env при инициализации конфигов,
     // поэтому переменные выставляются до их создания
@@ -97,9 +100,16 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     process.env.TELEGRAM_LEAD_DELIVERY_CHAT_ID = '123456789';
     process.env.TELEGRAM_CLIENT_TOKEN = '123456:test-token';
     process.env.HTTP_LEAD_DELIVERY_ENABLED = 'true';
-    process.env.HTTP_LEAD_DELIVERY_ENDPOINTS = `http://127.0.0.1:${sink.port.toString()}/leads`;
+    process.env.HTTP_LEAD_DELIVERY_ENDPOINTS = `http://127.0.0.1:${http.port.toString()}/leads`;
     process.env.HTTP_CLIENT_TIMEOUT = '2000';
     process.env.HTTP_CLIENT_RETRY_COUNT = '1';
+    process.env.EMAIL_LEAD_DELIVERY_ENABLED = 'true';
+    process.env.EMAIL_LEAD_DELIVERY_TO = 'inbox@test.local';
+    process.env.EMAIL_CLIENT_HOST = '127.0.0.1';
+    process.env.EMAIL_CLIENT_PORT = smtp.port.toString();
+    process.env.EMAIL_CLIENT_SECURE = 'false';
+    process.env.EMAIL_CLIENT_USER = 'leads@test.local';
+    process.env.EMAIL_CLIENT_PASSWORD = 'test-password';
 
     // Транспорт node-telegram-bot-api запоминает globalThis.fetch в конструкторе,
     // поэтому синк должен быть установлен до создания router-приложения
@@ -130,7 +140,8 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     jest.restoreAllMocks();
     await gatewayApp.close();
     await routerApp.close();
-    await sink.close();
+    await http.close();
+    await smtp.close();
     telegramApi.restore();
     await postgres.stop();
     await redis.stop();
@@ -194,7 +205,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       const { lead } = await postLead('http');
 
       const delivery = await waitFor(
-        () => sink.requests.find((entry) => (entry.body as { contact?: string }).contact === lead.contact),
+        () => http.requests.find((entry) => (entry.body as { contact?: string }).contact === lead.contact),
         10_000,
         'http sink request',
       );
@@ -210,7 +221,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       const { lead } = await postLead('telegram');
 
       const delivery = await waitFor(
-        () => telegramApi.calls.find((call) => call.params.text?.includes(lead.contact)),
+        () => telegramApi.calls.find((call) => call.params.text.includes(lead.contact)),
         10_000,
         'telegram api call',
       );
@@ -221,14 +232,34 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     });
   });
 
+  // Email delivery adapter tests
+  describe('email adapter', () => {
+    it('sends the lead text to the configured mailbox', async () => {
+      const { lead } = await postLead('email');
+
+      const delivery = await waitFor(
+        () => smtp.messages.find((message) => message.text.includes(lead.contact)),
+        10_000,
+        'smtp message',
+      );
+
+      expect(delivery?.to).toBe('inbox@test.local');
+      expect(delivery?.from).toBe('leads@test.local');
+      expect(delivery?.subject).toBe(`New lead from ${lead.name}`);
+      // Тело письма при передаче по SMTP может получить \r\n вместо \n,
+      // поэтому сравнивается с нормализацией переводов строк
+      const expectedText = `From: ${lead.name} <${lead.contact}>\nMessage: ${lead.message}`;
+
+      expect(delivery?.text.replace(/\r\n/g, '\n').trim()).toBe(expectedText);
+    });
+  });
+
   // Disabled channel test
   describe('disabled channels', () => {
     it('router skips disabled telegram channel with warning', async () => {
       // Канал включён глобально, поэтому адаптер отключается точечно:
       // тест проверяет пропуск лида в use-case, а не чтение конфига
-      const enabled = jest
-        .spyOn(TelegramLeadDeliveryAdapter.prototype, 'enabled', 'get')
-        .mockReturnValue(false);
+      const enabled = jest.spyOn(TelegramLeadDeliveryAdapter.prototype, 'enabled', 'get').mockReturnValue(false);
 
       try {
         // Warn не содержит идентификатора лида, поэтому тест фиксирует счётчик

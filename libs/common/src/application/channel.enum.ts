@@ -3,4 +3,5 @@ export enum ChannelEnum {
   DATABASE = 'database',
   TELEGRAM = 'telegram',
   HTTP = 'http',
+  EMAIL = 'email',
 }
