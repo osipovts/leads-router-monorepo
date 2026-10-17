@@ -5,11 +5,16 @@ import { telegramClientConfig, type TelegramClientConfigType } from './telegram-
 
 export class TelegramClient {
   private readonly logger = new Logger(TelegramClient.name);
-  private readonly bot: Bot;
+  private _bot: Bot | undefined;
 
-  constructor(@Inject(telegramClientConfig.KEY) config: TelegramClientConfigType) {
-    // Дефолтный таймаут транспорта (5 минут) подвешивал бы воркерскую джобу на всё это время
-    this.bot = new Bot(config.token, { timeoutMs: 10_000 });
+  constructor(@Inject(telegramClientConfig.KEY) private readonly config: TelegramClientConfigType) {}
+
+  // Бот валидирует токен в конструкторе, а клиент инстанцируется NestJS даже при выключенной
+  // доставке (тогда токен по контракту isDeliveryEnabled может отсутствовать в env), поэтому
+  // создаётся лениво — при первом реальном sendMessage
+  private get bot(): Bot {
+    this._bot ??= new Bot(this.config.token, { timeoutMs: 10_000 });
+    return this._bot;
   }
 
   async sendMessage(chatId: string, text: string): Promise<void> {

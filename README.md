@@ -75,7 +75,11 @@ docker compose up --build
 
 ## Unit-тесты
 
-TBD
+Запуск unit-тестов:
+
+```
+pnpm test:unit # в корне монорепы
+```
 
 ## E2E-тесты
 
