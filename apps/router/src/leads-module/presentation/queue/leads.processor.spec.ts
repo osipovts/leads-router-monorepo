@@ -3,6 +3,7 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import type { Job } from 'bullmq';
 import { UnrecoverableError } from 'bullmq';
 
+import { UnsupportedLeadChannelException } from '../../application/exceptions/unsupported-lead-channel.exception';
 import { SendLeadUseCase } from '../../application/use-cases/send-lead.use-case';
 import { LeadsProcessor } from './leads.processor';
 
@@ -35,7 +36,10 @@ describe('LeadsProcessor', () => {
   beforeEach(async (): Promise<void> => {
     useCase = new SendLeadUseCaseFake();
     module = await Test.createTestingModule({
-      providers: [LeadsProcessor, { provide: SendLeadUseCase, useValue: useCase }],
+      providers: [
+        LeadsProcessor,
+        { provide: SendLeadUseCase, useValue: useCase },
+      ],
     }).compile();
     processor = module.get(LeadsProcessor);
   });
@@ -81,5 +85,35 @@ describe('LeadsProcessor', () => {
       message: "Unsupported job 'unknown-job'",
     });
     expect(useCase.calls).toEqual([]);
+  });
+
+  it('rejects an unknown channel before dispatching', async (): Promise<void> => {
+    const data = { channel: ChannelEnum.CONSOLE, lead: VALID_PAYLOAD };
+    Reflect.set(data, 'channel', 'unknown');
+
+    await expect(processor.process(makeJob(QUEUES.LEADS.JOBS.SEND, data))).rejects.toBeInstanceOf(UnrecoverableError);
+    expect(useCase.calls).toEqual([]);
+  });
+
+  it('does not retry an unregistered adapter', async (): Promise<void> => {
+    jest.spyOn(useCase, 'execute').mockRejectedValue(new UnsupportedLeadChannelException(ChannelEnum.HTTP));
+    const job = makeJob(QUEUES.LEADS.JOBS.SEND, { channel: ChannelEnum.HTTP, lead: VALID_PAYLOAD });
+
+    await expect(processor.process(job)).rejects.toBeInstanceOf(UnrecoverableError);
+  });
+
+  it('keeps unknown delivery failures retryable without exposing their messages', async (): Promise<void> => {
+    jest.spyOn(useCase, 'execute').mockRejectedValue(new Error('private lead contact'));
+    const job = makeJob(QUEUES.LEADS.JOBS.SEND, { channel: ChannelEnum.HTTP, lead: VALID_PAYLOAD });
+    const result = await Promise.allSettled([processor.process(job)]);
+    const failure = result[0];
+
+    expect(failure.status).toBe('rejected');
+    if (failure.status === 'rejected') {
+      expect(failure.reason).not.toBeInstanceOf(UnrecoverableError);
+      expect(failure.reason).toMatchObject({
+        message: JSON.stringify({ error: 'Error', message: 'Lead delivery failed' }),
+      });
+    }
   });
 });

@@ -1,10 +1,12 @@
 import { ChannelEnum, type LeadEntity } from '@leads-router/common';
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import axios from 'axios';
 
 import type { LeadDeliveryPort } from '../../../application/ports/lead-delivery.port';
+import { isRetryableDeliveryError } from '../is-retryable-delivery-error';
 import { HttpClient } from './http-client/http.client';
 import { httpLeadDeliveryConfig, type HttpLeadDeliveryConfigType } from './http-lead-delivery.config';
-import { HttpLeadDeliveryException } from './http-lead-delivery.exception';
+import { type HttpDeliveryFailure, HttpLeadDeliveryException } from './http-lead-delivery.exception';
 
 @Injectable()
 export class HttpLeadDeliveryAdapter implements LeadDeliveryPort {
@@ -24,13 +26,24 @@ export class HttpLeadDeliveryAdapter implements LeadDeliveryPort {
     const jobs = this.config.ENDPOINTS.map((endpoint) => this.client.post(endpoint, lead));
     const results = await Promise.allSettled(jobs);
 
-    const failedEndpoints = this.config.ENDPOINTS.filter((_, index) => results[index].status === 'rejected');
+    const failures: HttpDeliveryFailure[] = [];
+    results.forEach((result, index): void => {
+      if (result.status === 'rejected') {
+        const error: unknown = result.reason;
+        failures.push({
+          endpoint: this.config.ENDPOINTS[index],
+          status: axios.isAxiosError(error) ? error.response?.status : undefined,
+          code: axios.isAxiosError(error) ? error.code : undefined,
+          retryable: isRetryableDeliveryError(error),
+        });
+      }
+    });
 
-    this.logger.verbose(`Fulfilled ${(results.length - failedEndpoints.length).toString()} request(s)`);
-    this.logger.verbose(`Rejected ${failedEndpoints.length.toString()} request(s)`);
+    this.logger.verbose(`Fulfilled ${(results.length - failures.length).toString()} request(s)`);
+    this.logger.verbose(`Rejected ${failures.length.toString()} request(s)`);
 
-    if (failedEndpoints.length > 0) {
-      throw new HttpLeadDeliveryException(failedEndpoints, this.config.ENDPOINTS.length);
+    if (failures.length > 0) {
+      throw new HttpLeadDeliveryException(failures, this.config.ENDPOINTS.length);
     }
   }
 }

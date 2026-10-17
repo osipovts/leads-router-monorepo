@@ -13,6 +13,7 @@ export class HttpClient {
   constructor(@Inject(httpClientConfig.KEY) config: HttpClientConfigType) {
     this.client = axios.create({
       timeout: config.timeout,
+      maxContentLength: 65_536,
     });
 
     axiosRetry(this.client, {
@@ -83,11 +84,9 @@ export class HttpClient {
   private logError(method: Method, url: string, duration: number, error: unknown): void {
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;
-      const responseData: unknown = error.response?.data;
-
       this.logger.error(
         `<- ${method} ${url} ${status?.toString() ?? String(error)} duration=${duration.toString()}ms`,
-        responseData != null ? JSON.stringify(responseData) : error.message,
+        { code: error.code, status },
       );
 
       return;
