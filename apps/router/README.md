@@ -19,6 +19,7 @@ client-подмодулях (`http-client/`, `telegram-client/`, `database-clien
 Доступные настройки:
 
 - `DATABASE_LEAD_DELIVERY_ENABLED`
+- `DATABASE_URL` - строка подключения (настройка клиента; валидируется только при включённом канале)
 
 ## Канал telegram
 

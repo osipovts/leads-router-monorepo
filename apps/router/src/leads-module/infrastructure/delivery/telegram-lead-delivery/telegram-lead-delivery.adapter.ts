@@ -27,6 +27,6 @@ export class TelegramLeadDeliveryAdapter implements LeadDeliveryPort {
       throw new TelegramLeadDeliveryException(error);
     }
 
-    this.logger.log(`Lead from ${lead.name} <${lead.contact}> sent to telegram chat ${this.config.CHAT_ID}`);
+    this.logger.log(`Lead ${lead.id} sent to telegram chat ${this.config.CHAT_ID}`);
   }
 }

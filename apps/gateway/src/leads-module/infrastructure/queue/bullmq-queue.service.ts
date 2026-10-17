@@ -31,7 +31,8 @@ export class BullmqQueueService implements QueuePort {
 
       await this.leadsQueue.add(jobName, job, options);
     } catch (error: unknown) {
-      this.logger.error({ lead, error });
+      // id без payload: contact и message - персональные данные, в логи не пишутся
+      this.logger.error({ channel, leadId: lead.id, error });
       throw new QueueUnavailableException();
     }
   }

@@ -58,4 +58,5 @@ async function bootstrap(): Promise<void> {
 
 bootstrap().catch((e: unknown): void => {
   Logger.error(e);
+  process.exit(1);
 });

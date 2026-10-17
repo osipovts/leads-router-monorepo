@@ -21,7 +21,7 @@ export class DatabaseLeadDeliveryAdapter implements LeadDeliveryPort {
   }
 
   async send(lead: LeadEntity): Promise<void> {
-    this.logger.log(`Saving lead from ${lead.name} <${lead.contact}> to postgres`);
+    this.logger.log(`Saving lead ${lead.id} to postgres`);
 
     try {
       await this.client.saveLead(lead);

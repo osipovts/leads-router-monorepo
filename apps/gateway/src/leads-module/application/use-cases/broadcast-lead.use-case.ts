@@ -20,14 +20,14 @@ export class BroadcastLeadUseCase {
     const firstSeen = await this.deduplication.tryAcquire(lead.id);
 
     if (!firstSeen) {
-      this.logger.warn(`Duplicate lead ${lead.id} from ${lead.contact}, skipping broadcast`);
+      this.logger.warn(`Duplicate lead ${lead.id}, skipping broadcast`);
       return;
     }
 
     const { attempts, backoff } = this.config;
     const allChannels = Object.values(ChannelEnum);
 
-    this.logger.log(`Broadcasting lead from ${lead.name} <${lead.contact}> to ${allChannels.join(', ')}`);
+    this.logger.log(`Broadcasting lead ${lead.id} to ${allChannels.join(', ')}`);
     const sendLead = (channel: ChannelEnum) => this.queue.sendLead(channel, lead, attempts, backoff);
 
     const results = await Promise.allSettled(allChannels.map((channel) => sendLead(channel)));

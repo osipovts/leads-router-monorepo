@@ -29,6 +29,6 @@ export class EmailLeadDeliveryAdapter implements LeadDeliveryPort {
       throw new EmailLeadDeliveryException(error);
     }
 
-    this.logger.log(`Lead from ${lead.name} <${lead.contact}> sent to ${this.config.TO}`);
+    this.logger.log(`Lead ${lead.id} sent to ${this.config.TO}`);
   }
 }
