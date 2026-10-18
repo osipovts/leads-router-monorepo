@@ -10,6 +10,11 @@ const emailClientConfigSchema = z.object({
   EMAIL_CLIENT_USER: z.string().trim().min(1),
   EMAIL_CLIENT_PASSWORD: z.string().min(1),
   EMAIL_CLIENT_FROM: z.string().trim().pipe(z.email()),
+  // Дефолты nodemailer (2 мин / 30 с / 10 мин) надолго занимают слот воркера при зависании SMTP,
+  // поэтому переопределяются более короткими значениями (в миллисекундах)
+  EMAIL_CLIENT_CONNECTION_TIMEOUT: z.coerce.number().int().min(1).max(600_000).default(10_000),
+  EMAIL_CLIENT_GREETING_TIMEOUT: z.coerce.number().int().min(1).max(600_000).default(10_000),
+  EMAIL_CLIENT_SOCKET_TIMEOUT: z.coerce.number().int().min(1).max(600_000).default(30_000),
 });
 
 const EMAIL_CLIENT_CONFIG = 'EMAIL_CLIENT_CONFIG';
@@ -18,7 +23,17 @@ export const emailClientConfig = registerAs(EMAIL_CLIENT_CONFIG, () => {
   // Клиент принадлежит email-адаптеру: пока доставка выключена, SMTP-переменные не валидируются
   // и могут не задаваться в env (см. контракт isDeliveryEnabled)
   if (!isDeliveryEnabled(process.env.EMAIL_LEAD_DELIVERY_ENABLED)) {
-    return { host: '', port: 0, secure: false, user: '', password: '', from: '' };
+    return {
+      host: '',
+      port: 0,
+      secure: false,
+      user: '',
+      password: '',
+      from: '',
+      connectionTimeout: 0,
+      greetingTimeout: 0,
+      socketTimeout: 0,
+    };
   }
 
   const env = emailClientConfigSchema.parse(process.env);
@@ -30,6 +45,9 @@ export const emailClientConfig = registerAs(EMAIL_CLIENT_CONFIG, () => {
     user: env.EMAIL_CLIENT_USER,
     password: env.EMAIL_CLIENT_PASSWORD,
     from: env.EMAIL_CLIENT_FROM,
+    connectionTimeout: env.EMAIL_CLIENT_CONNECTION_TIMEOUT,
+    greetingTimeout: env.EMAIL_CLIENT_GREETING_TIMEOUT,
+    socketTimeout: env.EMAIL_CLIENT_SOCKET_TIMEOUT,
   };
 });
 

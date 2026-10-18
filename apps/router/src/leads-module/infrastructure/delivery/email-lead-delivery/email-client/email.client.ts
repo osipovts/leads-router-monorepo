@@ -14,6 +14,9 @@ export class EmailClient {
       port: config.port,
       secure: config.secure,
       auth: { user: config.user, pass: config.password },
+      connectionTimeout: config.connectionTimeout,
+      greetingTimeout: config.greetingTimeout,
+      socketTimeout: config.socketTimeout,
     });
     this.from = config.from;
   }

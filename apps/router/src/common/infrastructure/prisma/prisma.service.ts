@@ -8,7 +8,13 @@ import { prismaConfig } from './prisma.config';
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnApplicationShutdown {
   constructor(@Inject(prismaConfig.KEY) private readonly config: PrismaConfigType) {
-    super({ adapter: new PrismaPg({ connectionString: config.databaseUrl }) });
+    super({
+      adapter: new PrismaPg({
+        connectionString: config.databaseUrl,
+        connectionTimeoutMillis: config.connectionTimeout,
+        statement_timeout: config.statementTimeout,
+      }),
+    });
   }
 
   async onModuleInit(): Promise<void> {

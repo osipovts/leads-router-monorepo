@@ -15,6 +15,9 @@ describe('email lead delivery config', () => {
     'EMAIL_CLIENT_USER',
     'EMAIL_CLIENT_PASSWORD',
     'EMAIL_CLIENT_FROM',
+    'EMAIL_CLIENT_CONNECTION_TIMEOUT',
+    'EMAIL_CLIENT_GREETING_TIMEOUT',
+    'EMAIL_CLIENT_SOCKET_TIMEOUT',
   ] as const;
 
   let savedEnv: Record<string, string | undefined>;
@@ -76,8 +79,20 @@ describe('email lead delivery config', () => {
       EMAIL_CLIENT_FROM: 'leads@example.com',
     } as const;
 
+    const disabledStub = {
+      host: '',
+      port: 0,
+      secure: false,
+      user: '',
+      password: '',
+      from: '',
+      connectionTimeout: 0,
+      greetingTimeout: 0,
+      socketTimeout: 0,
+    };
+
     it('returns a stub when the flag is not set', () => {
-      expect(emailClientConfig()).toEqual({ host: '', port: 0, secure: false, user: '', password: '', from: '' });
+      expect(emailClientConfig()).toEqual(disabledStub);
     });
 
     it('ignores malformed SMTP settings while the adapter is disabled', () => {
@@ -88,10 +103,10 @@ describe('email lead delivery config', () => {
       process.env.EMAIL_CLIENT_PASSWORD = '';
       process.env.EMAIL_CLIENT_FROM = 'not-an-email';
 
-      expect(emailClientConfig()).toEqual({ host: '', port: 0, secure: false, user: '', password: '', from: '' });
+      expect(emailClientConfig()).toEqual(disabledStub);
     });
 
-    it('parses SMTP settings when the adapter is enabled', () => {
+    it('parses SMTP settings with timeout defaults when the adapter is enabled', () => {
       process.env.EMAIL_LEAD_DELIVERY_ENABLED = 'true';
       Object.assign(process.env, validClientEnv);
 
@@ -102,7 +117,38 @@ describe('email lead delivery config', () => {
         user: 'leads@example.com',
         password: 'app-password',
         from: 'leads@example.com',
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 30_000,
       });
+    });
+
+    it('overrides the timeout defaults from env when provided', () => {
+      process.env.EMAIL_LEAD_DELIVERY_ENABLED = 'true';
+      Object.assign(process.env, validClientEnv, {
+        EMAIL_CLIENT_CONNECTION_TIMEOUT: '5000',
+        EMAIL_CLIENT_GREETING_TIMEOUT: '6000',
+        EMAIL_CLIENT_SOCKET_TIMEOUT: '7000',
+      });
+
+      expect(emailClientConfig()).toEqual({
+        host: 'smtp.example.com',
+        port: 587,
+        secure: false,
+        user: 'leads@example.com',
+        password: 'app-password',
+        from: 'leads@example.com',
+        connectionTimeout: 5000,
+        greetingTimeout: 6000,
+        socketTimeout: 7000,
+      });
+    });
+
+    it('fails fast on a non-positive timeout when the adapter is enabled', () => {
+      process.env.EMAIL_LEAD_DELIVERY_ENABLED = 'true';
+      Object.assign(process.env, validClientEnv, { EMAIL_CLIENT_SOCKET_TIMEOUT: '0' });
+
+      expect(() => emailClientConfig()).toThrow(ZodError);
     });
 
     it('fails fast when the adapter is enabled but SMTP settings are missing', () => {

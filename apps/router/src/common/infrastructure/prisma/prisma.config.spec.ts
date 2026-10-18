@@ -5,7 +5,12 @@ import { prismaConfig } from './prisma.config';
 // Пока флаг database-канала не включён явно, фабрика конфигурации возвращает конфигурацию отключённого адаптера без проверки схемы
 // (см. libs/common delivery-enabled.ts): router запускается без DATABASE_URL
 describe('prismaConfig', () => {
-  const ENV_KEYS = ['DATABASE_LEAD_DELIVERY_ENABLED', 'DATABASE_URL'] as const;
+  const ENV_KEYS = [
+    'DATABASE_LEAD_DELIVERY_ENABLED',
+    'DATABASE_URL',
+    'DATABASE_CONNECTION_TIMEOUT',
+    'DATABASE_STATEMENT_TIMEOUT',
+  ] as const;
 
   let savedEnv: Record<string, string | undefined>;
 
@@ -30,30 +35,54 @@ describe('prismaConfig', () => {
   });
 
   it('returns a disabled stub when the flag is not set', () => {
-    expect(prismaConfig()).toEqual({ enabled: false, databaseUrl: '' });
+    expect(prismaConfig()).toEqual({ enabled: false, databaseUrl: '', connectionTimeout: 0, statementTimeout: 0 });
   });
 
   it('returns a disabled stub when the flag is false', () => {
     process.env.DATABASE_LEAD_DELIVERY_ENABLED = 'false';
 
-    expect(prismaConfig()).toEqual({ enabled: false, databaseUrl: '' });
+    expect(prismaConfig()).toEqual({ enabled: false, databaseUrl: '', connectionTimeout: 0, statementTimeout: 0 });
   });
 
   it('ignores a malformed DATABASE_URL when the channel is disabled', () => {
     process.env.DATABASE_LEAD_DELIVERY_ENABLED = 'false';
     process.env.DATABASE_URL = 'not-a-url';
 
-    expect(prismaConfig()).toEqual({ enabled: false, databaseUrl: '' });
+    expect(prismaConfig()).toEqual({ enabled: false, databaseUrl: '', connectionTimeout: 0, statementTimeout: 0 });
   });
 
-  it('parses DATABASE_URL when the channel is enabled', () => {
+  it('parses DATABASE_URL with timeout defaults when the channel is enabled', () => {
     process.env.DATABASE_LEAD_DELIVERY_ENABLED = 'true';
     process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/leads';
 
     expect(prismaConfig()).toEqual({
       enabled: true,
       databaseUrl: 'postgresql://postgres:postgres@localhost:5432/leads',
+      connectionTimeout: 10_000,
+      statementTimeout: 15_000,
     });
+  });
+
+  it('overrides the timeout defaults from env when provided', () => {
+    process.env.DATABASE_LEAD_DELIVERY_ENABLED = 'true';
+    process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/leads';
+    process.env.DATABASE_CONNECTION_TIMEOUT = '3000';
+    process.env.DATABASE_STATEMENT_TIMEOUT = '4000';
+
+    expect(prismaConfig()).toEqual({
+      enabled: true,
+      databaseUrl: 'postgresql://postgres:postgres@localhost:5432/leads',
+      connectionTimeout: 3000,
+      statementTimeout: 4000,
+    });
+  });
+
+  it('fails fast on a non-positive timeout when the channel is enabled', () => {
+    process.env.DATABASE_LEAD_DELIVERY_ENABLED = 'true';
+    process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/leads';
+    process.env.DATABASE_STATEMENT_TIMEOUT = '0';
+
+    expect(() => prismaConfig()).toThrow(ZodError);
   });
 
   it('fails fast when DATABASE_URL is missing and the channel is enabled', () => {

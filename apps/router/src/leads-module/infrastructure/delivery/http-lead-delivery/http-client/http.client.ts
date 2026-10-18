@@ -14,6 +14,9 @@ export class HttpClient {
     this.client = axios.create({
       timeout: config.timeout,
       maxContentLength: 65_536,
+      // Редиректы не отслеживаются: follow-redirects превращает POST в GET без тела,
+      // и доставка молча становится успешной
+      maxRedirects: 0,
     });
 
     axiosRetry(this.client, {

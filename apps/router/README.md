@@ -20,6 +20,8 @@ client-подмодулях (`http-client/`, `telegram-client/`, `database-clien
 
 - `DATABASE_LEAD_DELIVERY_ENABLED`
 - `DATABASE_URL` - строка подключения (настройка клиента; валидируется только при включённом канале)
+- `DATABASE_CONNECTION_TIMEOUT`, `DATABASE_STATEMENT_TIMEOUT` - таймауты соединения и запроса pg-пула в
+  миллисекундах (настройки клиента; дефолты 10000 и 15000)
 
 ## Канал telegram
 
@@ -33,7 +35,8 @@ client-подмодулях (`http-client/`, `telegram-client/`, `database-clien
 
 ## Канал http
 
-Рассылает лид по другим инстансам.
+Рассылает лид по другим инстансам. Редиректы не отслеживаются: ответ 3xx считается
+permanent-ошибкой доставки (ретраев не будет), потому что следование редиректу превращает POST в GET без тела.
 
 Доступные настройки:
 
@@ -51,3 +54,5 @@ client-подмодулях (`http-client/`, `telegram-client/`, `database-clien
 - `EMAIL_LEAD_DELIVERY_TO` - адрес получателя
 - `EMAIL_CLIENT_HOST`, `EMAIL_CLIENT_PORT`, `EMAIL_CLIENT_SECURE`, `EMAIL_CLIENT_USER`, `EMAIL_CLIENT_PASSWORD`,
   `EMAIL_CLIENT_FROM` - настройки SMTP-клиента
+- `EMAIL_CLIENT_CONNECTION_TIMEOUT`, `EMAIL_CLIENT_GREETING_TIMEOUT`, `EMAIL_CLIENT_SOCKET_TIMEOUT` - таймауты
+  соединения, greeting и бездействия сокета в миллисекундах (дефолты 10000, 10000 и 30000)
