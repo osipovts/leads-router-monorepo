@@ -62,18 +62,7 @@ docker compose up --build
 
 # Тесты
 
-## Unit-тесты
-
-Запуск unit-тестов:
-
 ```
-pnpm test:unit # в корне монорепы
-```
-
-## E2E-тесты
-
-Запуск e2e-тестов:
-
-```
-pnpm test:e2e # в корне монорепы
+pnpm test:unit
+pnpm test:e2e
 ```
