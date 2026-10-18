@@ -37,12 +37,13 @@ client-подмодулях (`http-client/`, `telegram-client/`, `database-clien
 
 Рассылает лид по другим инстансам. Редиректы не отслеживаются: ответ 3xx считается
 permanent-ошибкой доставки (ретраев не будет), потому что следование редиректу превращает POST в GET без тела.
+Клиентские ретраи отключены: единственный слой повторов — attempts задачи BullMQ (`LEADS_QUEUE_ATTEMPTS` в gateway).
 
 Доступные настройки:
 
 - `HTTP_LEAD_DELIVERY_ENABLED`
 - `HTTP_LEAD_DELIVERY_ENDPOINTS` - список URL через запятую
-- `HTTP_CLIENT_TIMEOUT`, `HTTP_CLIENT_RETRY_COUNT` - настройки клиента
+- `HTTP_CLIENT_TIMEOUT` - таймаут запроса клиента (мс)
 
 ## Канал email
 

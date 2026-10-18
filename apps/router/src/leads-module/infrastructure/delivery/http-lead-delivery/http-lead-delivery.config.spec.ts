@@ -6,12 +6,7 @@ import { httpLeadDeliveryConfig } from './http-lead-delivery.config';
 // Пока HTTP_LEAD_DELIVERY_ENABLED выключен, фабрики конфигурации адаптера и клиента возвращают конфигурацию отключённого адаптера
 // и не парсят схемы — ENDPOINTS и настройки клиента могут отсутствовать
 describe('http lead delivery config', () => {
-  const ENV_KEYS = [
-    'HTTP_LEAD_DELIVERY_ENABLED',
-    'HTTP_LEAD_DELIVERY_ENDPOINTS',
-    'HTTP_CLIENT_TIMEOUT',
-    'HTTP_CLIENT_RETRY_COUNT',
-  ] as const;
+  const ENV_KEYS = ['HTTP_LEAD_DELIVERY_ENABLED', 'HTTP_LEAD_DELIVERY_ENDPOINTS', 'HTTP_CLIENT_TIMEOUT'] as const;
 
   let savedEnv: Record<string, string | undefined>;
 
@@ -66,23 +61,21 @@ describe('http lead delivery config', () => {
 
   describe('httpClientConfig', () => {
     it('returns a stub when the flag is not set', () => {
-      expect(httpClientConfig()).toEqual({ timeout: 0, retryCount: 0 });
+      expect(httpClientConfig()).toEqual({ timeout: 0 });
     });
 
     it('ignores malformed client settings while the adapter is disabled', () => {
       process.env.HTTP_LEAD_DELIVERY_ENABLED = 'false';
       process.env.HTTP_CLIENT_TIMEOUT = 'garbage';
-      process.env.HTTP_CLIENT_RETRY_COUNT = '-1';
 
-      expect(httpClientConfig()).toEqual({ timeout: 0, retryCount: 0 });
+      expect(httpClientConfig()).toEqual({ timeout: 0 });
     });
 
-    it('parses client settings when the adapter is enabled', () => {
+    it('parses the timeout when the adapter is enabled', () => {
       process.env.HTTP_LEAD_DELIVERY_ENABLED = 'true';
       process.env.HTTP_CLIENT_TIMEOUT = '1000';
-      process.env.HTTP_CLIENT_RETRY_COUNT = '3';
 
-      expect(httpClientConfig()).toEqual({ timeout: 1000, retryCount: 3 });
+      expect(httpClientConfig()).toEqual({ timeout: 1000 });
     });
 
     it('fails fast when the adapter is enabled but client settings are missing', () => {

@@ -1,7 +1,6 @@
 import { Inject, Logger } from '@nestjs/common';
 import type { AxiosInstance, AxiosRequestConfig, Method } from 'axios';
 import axios from 'axios';
-import axiosRetry from 'axios-retry';
 
 import { httpClientConfig, type HttpClientConfigType } from './http-client.config';
 import type { HttpClientRequestConfig } from './http-client.types';
@@ -19,16 +18,9 @@ export class HttpClient {
       maxRedirects: 0,
     });
 
-    axiosRetry(this.client, {
-      retries: config.retryCount,
-      retryDelay: (retryCount, error) => axiosRetry.exponentialDelay(retryCount, error),
-      retryCondition: (error) => {
-        const isRetryable = axiosRetry.isNetworkOrIdempotentRequestError(error);
-        const isRateLimited = error.response?.status === 429;
-
-        return isRetryable || isRateLimited;
-      },
-    });
+    // Клиентские ретраи намеренно отключены: единственный слой повторов — attempts задачи BullMQ.
+    // Повтор POST на уровне клиента выполнялся бы и после таймаута, когда сервер мог уже
+    // получить запрос, и умножал дубли на каждый уровень ретраев
   }
 
   async get<TResponse>(url: string, config?: HttpClientRequestConfig): Promise<TResponse> {

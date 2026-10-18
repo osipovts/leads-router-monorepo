@@ -12,7 +12,9 @@ export class TelegramClient {
   // NestJS создаёт клиент и при отключённой доставке, когда токен может отсутствовать.
   // Bot проверяет токен в конструкторе, поэтому создаётся при первом вызове sendMessage.
   private get bot(): Bot {
-    this._bot ??= new Bot(this.config.token, { timeoutMs: 10_000 });
+    // Ретраи транспорта SDK отключены: единственный слой повторов — attempts задачи BullMQ.
+    // Внутренние ретраи 429/5xx умножали бы дубли на каждый уровень ретраев
+    this._bot ??= new Bot(this.config.token, { timeoutMs: 10_000, maxRetries: 0 });
     return this._bot;
   }
 
