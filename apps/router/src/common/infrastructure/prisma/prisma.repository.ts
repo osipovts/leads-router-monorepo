@@ -33,9 +33,12 @@ export abstract class PrismaRepository {
       return true;
     }
 
+    // visited защищает от циклических цепочек cause: без него обход завис бы навсегда
+    const visited = new Set<object>();
     let current: unknown = error;
 
-    while (typeof current === 'object' && current !== null) {
+    while (typeof current === 'object' && current !== null && !visited.has(current)) {
+      visited.add(current);
       if ('code' in current && DATABASE_UNAVAILABLE_ERROR_CODES.has(String(current.code))) {
         return true;
       }
