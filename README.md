@@ -75,8 +75,8 @@ docker compose up --build
 После запуска будут доступны:
 
 1. Пример фронтенда на [http://localhost:5173](http://localhost:5173)
-2. Swagger UI на [http://localhost:3000](http://localhost:3000). Включается переменной `APP_SWAGGER_ENABLE` в
-   `apps/gateway/.env`
+2. Swagger UI на [http://localhost:3000/docs](http://localhost:3000/docs). Включается переменной `APP_SWAGGER_ENABLE`
+   в `apps/gateway/.env`; путь лежит вне `/api`, поэтому nginx фронтенда не проксирует его наружу
 3. Bull Dashboard на [http://localhost:4000](http://localhost:4000)
 
 `docker-compose.yml` содержит лишь самодостаточную демо-конфигурацию: для полноценного production-использования он не

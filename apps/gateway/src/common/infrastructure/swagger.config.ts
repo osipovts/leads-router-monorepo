@@ -4,8 +4,10 @@ import z from 'zod';
 
 const swaggerConfigSchema = z.object({
   APP_SWAGGER_ENABLE: z.stringbool().default(false),
-  APP_SWAGGER_API_DOCS: z.string().trim().min(1).default('api/docs'),
-  APP_SWAGGER_API_JSON_DOCS: z.string().trim().min(1).default('api/json-docs'),
+  // Пути намеренно вне префикса /api: nginx фронтенда проксирует /api/ наружу,
+  // и Swagger не должен быть доступен с публичного порта
+  APP_SWAGGER_API_DOCS: z.string().trim().min(1).default('docs'),
+  APP_SWAGGER_API_JSON_DOCS: z.string().trim().min(1).default('json-docs'),
 });
 
 export const SWAGGER_CONFIG = 'SWAGGER_CONFIG';
