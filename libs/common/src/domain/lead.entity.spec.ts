@@ -1,5 +1,6 @@
 import { LayerEnum, ModuleEnum } from '../enums';
 import { DomainException } from '../exceptions';
+import { generateLeadId } from '../infrastructure/lead-id.generator';
 import { InvalidLeadException } from './invalid-lead.exception';
 import type { LeadPayload } from './lead.entity';
 import { LeadEntity, LeadEntityValidation } from './lead.entity';
@@ -72,8 +73,8 @@ describe('LeadEntity', () => {
       expect(violationsOf({ message: character.repeat(2049) }).message).toBe('must be at most 2048 character(s) long');
     });
 
-    it('generates a UUID id', () => {
-      const lead = LeadEntity.generate(VALID.name, VALID.contact, VALID.message);
+    it('accepts an externally generated UUID id', () => {
+      const lead = LeadEntity.from({ id: generateLeadId(), ...VALID });
 
       expect(lead.id).toMatch(LeadEntityValidation.id.pattern);
       expect(lead.name).toBe(VALID.name);

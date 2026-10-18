@@ -1,4 +1,4 @@
-import { LeadEntity } from '@leads-router/common';
+import { generateLeadId, LeadEntity } from '@leads-router/common';
 import { Body, Controller, Post } from '@nestjs/common';
 import { ApiCreatedResponse, ApiExtraModels, ApiOperation, getSchemaPath } from '@nestjs/swagger';
 
@@ -32,10 +32,7 @@ export class BroadcastLeadsController {
   @ApiEnqueueFailedErrorResponse()
   @ApiTooManyRequestsErrorResponse()
   async post(@Body() req: LeadRequestDto): Promise<SuccessHttpResponseDto<LeadResponseDto>> {
-    const lead =
-      req.id === undefined
-        ? LeadEntity.generate(req.name, req.contact, req.message)
-        : new LeadEntity(req.id, req.name, req.contact, req.message);
+    const lead = new LeadEntity(req.id ?? generateLeadId(), req.name, req.contact, req.message);
 
     await this.broadcastLeadUseCase.execute(lead);
     return SuccessHttpResponseDto.create(LeadResponseDto.from(lead));

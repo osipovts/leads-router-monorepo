@@ -1,4 +1,4 @@
-import { ChannelEnum, InfrastructureException, LeadEntity } from '@leads-router/common';
+import { ChannelEnum, generateLeadId, InfrastructureException, LeadEntity } from '@leads-router/common';
 import { Logger } from '@nestjs/common';
 
 import type { LeadsQueueConfigType } from '../../leads.config';
@@ -32,7 +32,7 @@ describe('BroadcastLeadUseCase', () => {
   let queue: QueueFake;
   let useCase: BroadcastLeadUseCase;
 
-  const makeLead = (): LeadEntity => LeadEntity.generate('Иван', 'ivan@example.com', 'hello');
+  const makeLead = (): LeadEntity => new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
 
   beforeAll((): void => {
     loggerLog = jest.spyOn(Logger.prototype, 'log').mockImplementation((): void => undefined);

@@ -1,4 +1,4 @@
-import { ApplicationException, ChannelEnum, LeadEntity } from '@leads-router/common';
+import { ApplicationException, ChannelEnum, generateLeadId, LeadEntity } from '@leads-router/common';
 import { Logger } from '@nestjs/common';
 
 import { UnsupportedLeadChannelException } from '../exceptions/unsupported-lead-channel.exception';
@@ -26,7 +26,7 @@ describe('SendLeadUseCase', () => {
   let telegramAdapter: AdapterFake;
   let useCase: SendLeadUseCase;
 
-  const makeLead = (): LeadEntity => LeadEntity.generate('Иван', 'ivan@example.com', 'hello');
+  const makeLead = (): LeadEntity => new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
 
   beforeAll(() => {
     loggerVerbose = jest.spyOn(Logger.prototype, 'verbose').mockImplementation(() => undefined);

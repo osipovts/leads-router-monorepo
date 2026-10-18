@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 import { InvalidLeadException } from './invalid-lead.exception';
 
 /**
@@ -48,10 +46,6 @@ export class LeadEntity {
 
   static from(payload: LeadPayload): LeadEntity {
     return new LeadEntity(payload.id, payload.name, payload.contact, payload.message);
-  }
-
-  static generate(name: string, contact: string, message: string): LeadEntity {
-    return new LeadEntity(randomUUID(), name, contact, message);
   }
 
   private static validateField(value: unknown, limits: LeadFieldLimits): string | undefined {
