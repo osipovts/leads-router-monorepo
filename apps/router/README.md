@@ -6,11 +6,12 @@ client-подмодулях (`http-client/`, `telegram-client/`, `database-clien
 
 ## Канал console
 
-Просто выводит лид в консоль. Используется для дебага.
+Просто выводит лид в консоль. Используется для дебага: канал пишет полные данные лида
+(включая contact и message) в логи, поэтому по умолчанию выключен.
 
 Доступные настройки:
 
-- `CONSOLE_LEAD_DELIVERY_ENABLED`
+- `CONSOLE_LEAD_DELIVERY_ENABLED` (по умолчанию `false`)
 
 ## Канал database
 
