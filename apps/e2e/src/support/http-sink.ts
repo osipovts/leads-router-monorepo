@@ -8,6 +8,8 @@ export interface RecordedRequest {
 export interface HttpSink {
   port: number;
   requests: RecordedRequest[];
+  /** Максимум запросов, обрабатывавшихся сервером одновременно */
+  maxConcurrent: number;
   close(): Promise<void>;
 }
 
@@ -19,27 +21,54 @@ export interface HttpSinkResponse {
 
 export interface HttpSinkOptions {
   respond?: (request: RecordedRequest) => HttpSinkResponse;
+  /** Задержка ответа в мс: синк удерживает соединение, чтобы фиксировать параллельные доставки */
+  delayMs?: number;
 }
 
 /**
  * Локальный HTTP-сервер записывает запросы адаптера доставки.
- * Тест проверяет полученные данные через requests и может задать ответ сервера.
+ * Тест проверяет полученные данные через requests и может задать ответ серверу.
  */
 export function startHttpSink(options: HttpSinkOptions = {}): Promise<HttpSink> {
   const requests: RecordedRequest[] = [];
+  let inFlight = 0;
+  let maxConcurrent = 0;
 
   const server = http.createServer((req, res): void => {
+    inFlight += 1;
+    maxConcurrent = Math.max(maxConcurrent, inFlight);
+
     let raw = '';
     req.on('data', (chunk: string): void => {
       raw += chunk;
     });
     req.on('end', (): void => {
-      const body: unknown = raw.length > 0 ? JSON.parse(raw) : null;
+      // Тело может не быть JSON: разбор терпит неудачу, но запрос записывается,
+      // а сервер отвечает 400 вместо обрыва соединения без ответа
+      let body: unknown;
+      try {
+        body = raw.length > 0 ? (JSON.parse(raw) as unknown) : null;
+      } catch {
+        body = raw;
+      }
+
       const recorded: RecordedRequest = { url: req.url, body };
       requests.push(recorded);
-      const response: HttpSinkResponse = options.respond?.(recorded) ?? { status: 200 };
-      res.writeHead(response.status, { 'Content-Type': 'text/plain', ...response.headers });
-      res.end(response.body ?? 'ok');
+
+      const respond = (): void => {
+        const response: HttpSinkResponse =
+          typeof recorded.body === 'string' ? { status: 400 } : (options.respond?.(recorded) ?? { status: 200 });
+        res.writeHead(response.status, { 'Content-Type': 'text/plain', ...response.headers });
+        res.end(response.body ?? 'ok');
+        inFlight -= 1;
+      };
+
+      if (options.delayMs !== undefined) {
+        setTimeout(respond, options.delayMs);
+        return;
+      }
+
+      respond();
     });
   });
 
@@ -54,6 +83,9 @@ export function startHttpSink(options: HttpSinkOptions = {}): Promise<HttpSink> 
       resolve({
         port: address.port,
         requests,
+        get maxConcurrent(): number {
+          return maxConcurrent;
+        },
         close: (): Promise<void> =>
           new Promise((done): void => {
             server.close((): void => {

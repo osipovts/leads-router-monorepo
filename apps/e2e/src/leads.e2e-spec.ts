@@ -1,8 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import type { Server as HttpServer } from 'node:http';
+import { createServer } from 'node:net';
 import { join } from 'node:path';
 
-import { ChannelEnum, LeadEntity, QUEUES, type SendLeadJob } from '@leads-router/common';
+import { ChannelEnum, generateLeadId, LeadEntity, QUEUES, type SendLeadJob } from '@leads-router/common';
 import { getQueueToken } from '@nestjs/bullmq';
 import type { Job, Queue } from 'bullmq';
 import request from 'supertest';
@@ -53,6 +54,29 @@ const silently = async (action: () => unknown): Promise<void> => {
     // ресурс не был создан (beforeAll оборвался раньше) или уже закрыт
   }
 };
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve): void => {
+    setTimeout(resolve, ms);
+  });
+
+/** Занимает свободный ephemeral-порт и возвращает его номер, освободив слушатель. */
+const reserveHostPort = (): Promise<number> =>
+  new Promise((resolve, reject): void => {
+    const probe = createServer();
+    probe.once('error', reject);
+    probe.listen(0, '127.0.0.1', (): void => {
+      const address = probe.address();
+      if (address === null || typeof address === 'string') {
+        reject(new Error('Port probe has no TCP address'));
+        return;
+      }
+      const { port } = address;
+      probe.close((): void => {
+        resolve(port);
+      });
+    });
+  });
 
 describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adapters', () => {
   // Переменные присваиваются в beforeAll: jest не выполняет тесты,
@@ -119,9 +143,13 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
   };
 
   beforeAll(async () => {
+    // Фиксированный host-порт postgres: тест остановки БД поднимает контейнер заново через
+    // docker start, а динамический порт при этом выделяется заново и не совпадает со старым
+    const postgresHostPort = await reserveHostPort();
+
     postgres = await new GenericContainer('postgres:18-alpine')
       .withEnvironment({ POSTGRES_USER: 'postgres', POSTGRES_PASSWORD: 'postgres', POSTGRES_DB: 'leads' })
-      .withExposedPorts(5432)
+      .withExposedPorts({ container: 5432, host: postgresHostPort })
       .withWaitStrategy(Wait.forLogMessage('database system is ready to accept connections', 2))
       .start();
 
@@ -156,7 +184,6 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     process.env.HTTP_LEAD_DELIVERY_ENABLED = 'true';
     process.env.HTTP_LEAD_DELIVERY_ENDPOINTS = `http://127.0.0.1:${http.port.toString()}/leads`;
     process.env.HTTP_CLIENT_TIMEOUT = '2000';
-    process.env.HTTP_CLIENT_RETRY_COUNT = '1';
     process.env.LEADS_QUEUE_BACKOFF = '50';
     process.env.EMAIL_LEAD_DELIVERY_ENABLED = 'true';
     process.env.EMAIL_LEAD_DELIVERY_TO = 'inbox@test.local';
@@ -166,6 +193,11 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     process.env.EMAIL_CLIENT_USER = 'leads@test.local';
     process.env.EMAIL_CLIENT_PASSWORD = 'test-password';
     process.env.EMAIL_CLIENT_FROM = 'leads@test.local';
+    // Окно троттлинга в 1 секунду и лимит 20: тест 429 отправляет 21 быстрый запрос подряд,
+    // а остальные тесты не набирают 20 запросов внутри одной секунды.
+    // THROTTLE_TTL_MS меньше 1000 не проходит zod-контракт gateway
+    process.env.THROTTLE_TTL_MS = '1000';
+    process.env.THROTTLE_LIMIT = '20';
 
     // Транспорт node-telegram-bot-api запоминает globalThis.fetch в конструкторе,
     // поэтому перехват устанавливается до создания router-приложения.
@@ -266,7 +298,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     it.each(['😀'.repeat(64), '✈️'.repeat(32)])(
       'accepts and stores a name containing 64 Unicode code points: %s',
       async (name): Promise<void> => {
-        const lead = LeadEntity.generate(name, 'unicode@test.local', '😀'.repeat(2048));
+        const lead = new LeadEntity(generateLeadId(), name, 'unicode@test.local', '😀'.repeat(2048));
 
         await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
 
@@ -283,6 +315,19 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
         await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(400);
       },
     );
+
+    it('rate limits requests above the throttle window limit', async (): Promise<void> => {
+      // Окно очищается от запросов предыдущих тестов и после теста — для следующих
+      await sleep(1_100);
+
+      for (let i = 0; i < 20; i += 1) {
+        await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send({ name: '' }).expect(400);
+      }
+
+      await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send({ name: '' }).expect(429);
+
+      await sleep(1_100);
+    }, 15_000);
   });
 
   // Console delivery adapter tests
@@ -305,7 +350,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
   describe('database adapter', () => {
     it('ignores a duplicate primary key even when queue deduplication is bypassed', async (): Promise<void> => {
       const client = routerApp.get(DatabaseClient);
-      const lead = LeadEntity.generate('Database duplicate', 'duplicate@test.local', 'hello');
+      const lead = new LeadEntity(generateLeadId(), 'Database duplicate', 'duplicate@test.local', 'hello');
 
       await client.saveLead(lead);
       await client.saveLead(lead);
@@ -324,6 +369,74 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
 
       expect(savedRow).toMatchObject({ name: lead.name, contact: lead.contact, message: lead.message });
     });
+
+    it('fails database jobs while postgres is down and recovers after a restart', async (): Promise<void> => {
+      await waitForQueueIdle();
+      const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
+      // restart() у testcontainers повторно применяет wait-strategy со счетчиком повторений
+      // лога, который перезапущенный postgres уже не выдаёт, поэтому контейнер
+      // останавливается без удаления и поднимается docker start без ожидания готовности
+      const containerName = postgres.getName().replace(/^\//, '');
+      // Rootless docker освобождает проброшенный порт с задержкой: немедленный старт
+      // после остановки падает с "address already in use", поэтому старт повторяется
+      const startContainer = async (): Promise<void> => {
+        for (let attempt = 0; ; attempt += 1) {
+          try {
+            execFileSync('docker', ['start', containerName], { stdio: 'pipe' });
+            return;
+          } catch (error) {
+            if (attempt >= 4) {
+              throw error;
+            }
+            await sleep(500);
+          }
+        }
+      };
+      // timeout 1 — быстрая остановка без десятисекундного grace period
+      await postgres.stop({ remove: false, timeout: 1 });
+      try {
+        const lead = new LeadEntity(generateLeadId(), 'DB outage', 'db-outage@test.local', 'hello');
+        await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
+
+        const job = await waitFor(async (): Promise<Job<SendLeadJob> | undefined> => {
+          const jobs = await leadsQueue.getJobs(['failed']);
+          return jobs.find(
+            (entry): boolean => entry.data.lead.id === lead.id && entry.data.channel === ChannelEnum.DATABASE,
+          );
+        }, 20_000, 'database job failed');
+
+        // Остановка контейнера снимает проброс порта: соединения отклоняются мгновенно,
+        // все три попытки исчерпываются быстрее, чем истечёт таймаут соединения пула
+        expect(job.attemptsMade).toBe(3);
+        expect(job.failedReason).toContain('postgres failed');
+      } finally {
+        await startContainer();
+        errors.mockRestore();
+      }
+
+      // Пул Prisma после остановки контейнера держит мёртвые соединения: пересоздаём его
+      // и ждём готовности postgres, пережидая отказы, пока контейнер поднимается
+      await waitFor(
+        async (): Promise<number | false> => {
+          try {
+            await prisma.$disconnect();
+            await prisma.$connect();
+            return await prisma.lead.count();
+          } catch {
+            return false;
+          }
+        },
+        30_000,
+        'postgres accepting connections',
+      );
+      const { lead: recovered } = await postLead('db-recovery');
+
+      await waitFor(
+        () => prisma.lead.findFirst({ where: { contact: recovered.contact } }),
+        10_000,
+        'database row saved after recovery',
+      );
+    });
   });
 
   // Http delivery adapter tests
@@ -337,7 +450,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       const config = routerApp.get<HttpLeadDeliveryConfigType>(httpLeadDeliveryConfig.KEY);
       const endpoints = config.ENDPOINTS;
       const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
-      const lead = LeadEntity.generate('HTTP retry', 'http-retry@test.local', 'hello');
+      const lead = new LeadEntity(generateLeadId(), 'HTTP retry', 'http-retry@test.local', 'hello');
       config.ENDPOINTS = [...endpoints, `http://127.0.0.1:${failing.port.toString()}/leads`];
       try {
         await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
@@ -373,7 +486,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       const config = routerApp.get<HttpLeadDeliveryConfigType>(httpLeadDeliveryConfig.KEY);
       const endpoints = config.ENDPOINTS;
       const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
-      const lead = LeadEntity.generate('HTTP rejected', 'http-rejected@test.local', 'hello');
+      const lead = new LeadEntity(generateLeadId(), 'HTTP rejected', 'http-rejected@test.local', 'hello');
       config.ENDPOINTS = [`http://127.0.0.1:${failing.port.toString()}/leads`];
       try {
         await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
@@ -387,6 +500,51 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
         config.ENDPOINTS = endpoints;
         errors.mockRestore();
         await failing.close();
+      }
+    });
+
+    it('retries a network error until attempts are exhausted and keeps the code in the reason', async (): Promise<void> => {
+      await waitForQueueIdle();
+      const config = routerApp.get<HttpLeadDeliveryConfigType>(httpLeadDeliveryConfig.KEY);
+      const endpoints = config.ENDPOINTS;
+      const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
+      const lead = new LeadEntity(generateLeadId(), 'HTTP network', 'http-network@test.local', 'hello');
+      // Порт 9 (discard) закрыт: соединение отклоняется мгновенно
+      config.ENDPOINTS = ['http://127.0.0.1:9/leads'];
+      try {
+        await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
+        const job = await settledHttpJob(lead.id);
+
+        expect(await job.getState()).toBe('failed');
+        expect(job.attemptsMade).toBe(3);
+        expect(job.failedReason).toContain('"code":"ECONNREFUSED"');
+      } finally {
+        config.ENDPOINTS = endpoints;
+        errors.mockRestore();
+      }
+    });
+
+    it('fails the delivery when the response body exceeds the size cap', async (): Promise<void> => {
+      await waitForQueueIdle();
+      const oversized = await startHttpSink({
+        respond: (): { status: number; body: string } => ({ status: 200, body: 'x'.repeat(70_000) }),
+      });
+      const config = routerApp.get<HttpLeadDeliveryConfigType>(httpLeadDeliveryConfig.KEY);
+      const endpoints = config.ENDPOINTS;
+      const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
+      const lead = new LeadEntity(generateLeadId(), 'HTTP size', 'http-size@test.local', 'hello');
+      config.ENDPOINTS = [`http://127.0.0.1:${oversized.port.toString()}/leads`];
+      try {
+        await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
+        const job = await settledHttpJob(lead.id);
+
+        expect(await job.getState()).toBe('failed');
+        // axios прерывает загрузку без ответа: доступен только код ошибки
+        expect(job.failedReason).toContain('"code":"ERR_BAD_RESPONSE"');
+      } finally {
+        config.ENDPOINTS = endpoints;
+        errors.mockRestore();
+        await oversized.close();
       }
     });
 
@@ -452,7 +610,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     it('accepts the same lead again after the deduplication TTL expires', async (): Promise<void> => {
       const config = gatewayApp.get<LeadsQueueConfigType>(leadsQueueConfig.KEY);
       const sender = new BullmqQueueService(leadsQueue, config, { ttlMs: 1_000 });
-      const lead = LeadEntity.generate('TTL', 'ttl@test.local', 'hello');
+      const lead = new LeadEntity(generateLeadId(), 'TTL', 'ttl@test.local', 'hello');
 
       await sender.sendLead(ChannelEnum.CONSOLE, lead, config.attempts, config.backoff);
       await sender.sendLead(ChannelEnum.CONSOLE, lead, config.attempts, config.backoff);
@@ -466,7 +624,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     });
 
     it('deduplicates concurrent requests independently for every channel', async (): Promise<void> => {
-      const lead = LeadEntity.generate('Concurrent', 'concurrent@test.local', 'hello');
+      const lead = new LeadEntity(generateLeadId(), 'Concurrent', 'concurrent@test.local', 'hello');
 
       await Promise.all([
         request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201),
@@ -477,7 +635,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     });
 
     it('retries missing channels without duplicating accepted jobs after a partial failure', async (): Promise<void> => {
-      const lead = LeadEntity.generate('Retry', 'retry@test.local', 'hello');
+      const lead = new LeadEntity(generateLeadId(), 'Retry', 'retry@test.local', 'hello');
       const realAdd = leadsQueue.add.bind(leadsQueue);
       const add = jest.spyOn(leadsQueue, 'add').mockImplementation((name, data, options): ReturnType<typeof realAdd> => {
         if (data.lead.id === lead.id && data.channel === ChannelEnum.EMAIL) {
@@ -500,7 +658,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     });
 
     it('does not acknowledge either concurrent request when all enqueue operations fail', async (): Promise<void> => {
-      const lead = LeadEntity.generate('Unavailable', 'unavailable@test.local', 'hello');
+      const lead = new LeadEntity(generateLeadId(), 'Unavailable', 'unavailable@test.local', 'hello');
       const add = jest.spyOn(leadsQueue, 'add').mockRejectedValue(new Error('simulated Redis outage'));
 
       try {
@@ -566,10 +724,42 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     });
   });
 
+  // Worker concurrency test
+  describe('worker concurrency', (): void => {
+    it('processes two slow deliveries in parallel when concurrency is raised', async (): Promise<void> => {
+      await waitForQueueIdle();
+      const slow = await startHttpSink({ delayMs: 700 });
+      const config = routerApp.get<HttpLeadDeliveryConfigType>(httpLeadDeliveryConfig.KEY);
+      const endpoints = config.ENDPOINTS;
+      const processor = routerApp.get(LeadsProcessor);
+      processor.worker.concurrency = 2;
+      config.ENDPOINTS = [`http://127.0.0.1:${slow.port.toString()}/leads`];
+      try {
+        const first = new LeadEntity(generateLeadId(), 'Concurrency A', 'concurrency-a@test.local', 'hello');
+        const second = new LeadEntity(generateLeadId(), 'Concurrency B', 'concurrency-b@test.local', 'hello');
+
+        await Promise.all([
+          request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(first).expect(201),
+          request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(second).expect(201),
+        ]);
+
+        await settledHttpJob(first.id);
+        await settledHttpJob(second.id);
+
+        // Две медленные доставки обрабатывались одновременно; concurrency=2 не даёт большего числа
+        expect(slow.maxConcurrent).toBe(2);
+      } finally {
+        processor.worker.concurrency = 1;
+        config.ENDPOINTS = endpoints;
+        await slow.close();
+      }
+    });
+  });
+
   describe('infrastructure failures', (): void => {
     it('returns 503 within the Redis command budget and recovers after Redis resumes', async (): Promise<void> => {
       await waitForQueueIdle();
-      const lead = LeadEntity.generate('Redis timeout', 'redis-timeout@test.local', 'hello');
+      const lead = new LeadEntity(generateLeadId(), 'Redis timeout', 'redis-timeout@test.local', 'hello');
       const errors = jest.spyOn(GatewayLogger.prototype, 'error').mockImplementation((): void => undefined);
       await redis.exec(['redis-cli', 'CLIENT', 'PAUSE', '8000', 'ALL']);
       try {
@@ -592,7 +782,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
   describe('shutdown', (): void => {
     it('drains an active database delivery before disconnecting Prisma', async (): Promise<void> => {
       await waitForQueueIdle();
-      const lead = LeadEntity.generate('Shutdown', 'shutdown@test.local', 'hello');
+      const lead = new LeadEntity(generateLeadId(), 'Shutdown', 'shutdown@test.local', 'hello');
       const useCase = routerApp.get(SendLeadUseCase);
       const processor = routerApp.get(LeadsProcessor);
       const execute = useCase.execute.bind(useCase);
