@@ -27,11 +27,16 @@ export class BullmqQueueService implements QueuePort {
   }
 
   async sendLead(channel: ChannelEnum, lead: LeadEntity, attempts: number, backoff: number): Promise<void> {
+    // До первого подключения BullMQ может ждать Redis без ограничения времени.
+    if (this.leadsQueue.getBackend().connection.status !== 'ready') {
+      // Штатная деградация, а не сбой: ошибки соединения уже логируются слушателем 'error'
+      // очереди, а итог запроса — exception-фильтром. Без этого ограничения broadcast
+      // в 5 каналов давал бы 6 error-логов на каждый отклонённый запрос
+      this.logger.debug({ channel, leadId: lead.id, event: 'queue_not_ready' });
+      throw new QueueUnavailableException();
+    }
+
     try {
-      // До первого подключения BullMQ может ждать Redis без ограничения времени.
-      if (this.leadsQueue.getBackend().connection.status !== 'ready') {
-        throw new QueueUnavailableException();
-      }
       const jobName = QUEUES.LEADS.JOBS.SEND;
       const job: SendLeadJob = { channel, lead };
       const options = {

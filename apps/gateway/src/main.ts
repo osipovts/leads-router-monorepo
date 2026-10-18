@@ -13,7 +13,12 @@ import { HttpLoggingInterceptor } from './common/presentation/http/http-logging.
 import { HttpValidationPipe } from './common/presentation/http/http-validation.pipe';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // bufferLogs накапливает сообщения бутстрапа, пока не задан логгер с уровнем из конфига
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
+
+  // По умолчанию уровень 'log': debug/verbose скрыты, поэтому request/response-логи
+  // интерцептора не печатаются в проде без настройки окружения
+  app.useLogger(app.get<AppConfigType>(appConfig.KEY).loggerLevels);
 
   // API version
   app.enableVersioning({ type: VersioningType.URI });

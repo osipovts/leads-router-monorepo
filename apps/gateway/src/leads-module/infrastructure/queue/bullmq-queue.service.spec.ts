@@ -1,6 +1,13 @@
 import { EventEmitter } from 'node:events';
 
-import { ChannelEnum, InfrastructureException, LeadEntity, QUEUES, type SendLeadJob } from '@leads-router/common';
+import {
+  ChannelEnum,
+  generateLeadId,
+  InfrastructureException,
+  LeadEntity,
+  QUEUES,
+  type SendLeadJob,
+} from '@leads-router/common';
 import { getQueueToken } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
@@ -69,7 +76,7 @@ describe('BullmqQueueService', () => {
   });
 
   it('adds a job with retries, retention and atomic deduplication per channel', async (): Promise<void> => {
-    const lead = LeadEntity.generate('Иван', 'ivan@example.com', 'hello');
+    const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
 
     await service.sendLead(ChannelEnum.TELEGRAM, lead, CONFIG.attempts, CONFIG.backoff);
 
@@ -87,7 +94,7 @@ describe('BullmqQueueService', () => {
   });
 
   it('uses different deduplication keys for different channels', async (): Promise<void> => {
-    const lead = LeadEntity.generate('Иван', 'ivan@example.com', 'hello');
+    const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
 
     await service.sendLead(ChannelEnum.EMAIL, lead, CONFIG.attempts, CONFIG.backoff);
     await service.sendLead(ChannelEnum.TELEGRAM, lead, CONFIG.attempts, CONFIG.backoff);
@@ -117,17 +124,19 @@ describe('BullmqQueueService', () => {
 
   it('rejects enqueue before the first Redis connection is ready', async (): Promise<void> => {
     connectionStatus = 'initializing';
-    const lead = LeadEntity.generate('Ivan', 'ivan@example.com', 'hello');
+    const lead = new LeadEntity(generateLeadId(), 'Ivan', 'ivan@example.com', 'hello');
 
     await expect(service.sendLead(ChannelEnum.EMAIL, lead, CONFIG.attempts, CONFIG.backoff)).rejects.toBeInstanceOf(
       QueueUnavailableException,
     );
     expect(add).not.toHaveBeenCalled();
+    // Отказ до подключения — штатная деградация: error-уровень не задействуется
+    expect(loggerError).not.toHaveBeenCalled();
   });
 
   it('throws a typed exception without logging lead data when enqueue fails', async (): Promise<void> => {
     add.mockRejectedValue(new Error('connection refused'));
-    const lead = LeadEntity.generate('Иван', 'ivan@example.com', 'hello');
+    const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
 
     await expect(service.sendLead(ChannelEnum.EMAIL, lead, CONFIG.attempts, CONFIG.backoff)).rejects.toBeInstanceOf(
       QueueUnavailableException,
