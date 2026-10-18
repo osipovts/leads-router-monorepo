@@ -3,10 +3,10 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 
 import type { LeadDeliveryPort } from '../../../application/ports/lead-delivery.port';
-import { isRetryableDeliveryError } from '../is-retryable-delivery-error';
 import { HttpClient } from './http-client/http.client';
 import { httpLeadDeliveryConfig, type HttpLeadDeliveryConfigType } from './http-lead-delivery.config';
 import { type HttpDeliveryFailure, HttpLeadDeliveryException } from './http-lead-delivery.exception';
+import { isRetryableHttpError } from './is-retryable-http-error';
 
 @Injectable()
 export class HttpLeadDeliveryAdapter implements LeadDeliveryPort {
@@ -34,7 +34,7 @@ export class HttpLeadDeliveryAdapter implements LeadDeliveryPort {
           endpoint: this.config.ENDPOINTS[index],
           status: axios.isAxiosError(error) ? error.response?.status : undefined,
           code: axios.isAxiosError(error) ? error.code : undefined,
-          retryable: isRetryableDeliveryError(error),
+          isRetryable: isRetryableHttpError(error),
         });
       }
     });

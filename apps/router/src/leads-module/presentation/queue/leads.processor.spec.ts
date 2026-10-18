@@ -2,9 +2,12 @@ import { ChannelEnum, LayerEnum, LeadEntity, QUEUES, type SendLeadJob } from '@l
 import { Test, type TestingModule } from '@nestjs/testing';
 import type { Job } from 'bullmq';
 import { UnrecoverableError } from 'bullmq';
+import { TelegramApiError } from 'node-telegram-bot-api';
 
 import { UnsupportedLeadChannelException } from '../../application/exceptions/unsupported-lead-channel.exception';
 import { SendLeadUseCase } from '../../application/use-cases/send-lead.use-case';
+import { HttpLeadDeliveryException } from '../../infrastructure/delivery/http-lead-delivery/http-lead-delivery.exception';
+import { TelegramLeadDeliveryException } from '../../infrastructure/delivery/telegram-lead-delivery/telegram-lead-delivery.exception';
 import { leadsWorkerConfig } from '../../leads.config';
 import { LeadsProcessor } from './leads.processor';
 
@@ -102,6 +105,30 @@ describe('LeadsProcessor', () => {
     const job = makeJob(QUEUES.LEADS.JOBS.SEND, { channel: ChannelEnum.HTTP, lead: VALID_PAYLOAD });
 
     await expect(processor.process(job)).rejects.toBeInstanceOf(UnrecoverableError);
+  });
+
+  it('does not retry a delivery failure the adapter marked permanent', async (): Promise<void> => {
+    jest
+      .spyOn(useCase, 'execute')
+      .mockRejectedValue(new HttpLeadDeliveryException([{ endpoint: 'http://one.test/leads', status: 404, isRetryable: false }], 1));
+    const job = makeJob(QUEUES.LEADS.JOBS.SEND, { channel: ChannelEnum.HTTP, lead: VALID_PAYLOAD });
+
+    await expect(processor.process(job)).rejects.toBeInstanceOf(UnrecoverableError);
+  });
+
+  it('retries a delivery failure the adapter marked retryable', async (): Promise<void> => {
+    jest
+      .spyOn(useCase, 'execute')
+      .mockRejectedValue(new TelegramLeadDeliveryException(new TelegramApiError(500, 'server error')));
+    const job = makeJob(QUEUES.LEADS.JOBS.SEND, { channel: ChannelEnum.TELEGRAM, lead: VALID_PAYLOAD });
+    const result = await Promise.allSettled([processor.process(job)]);
+    const failure = result[0];
+
+    expect(failure.status).toBe('rejected');
+    if (failure.status === 'rejected') {
+      expect(failure.reason).not.toBeInstanceOf(UnrecoverableError);
+      expect(failure.reason).toBeInstanceOf(Error);
+    }
   });
 
   it('keeps unknown delivery failures retryable without exposing their messages', async (): Promise<void> => {

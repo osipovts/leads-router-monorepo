@@ -1,23 +1,22 @@
-import { InfrastructureException, ModuleEnum } from '@leads-router/common';
+import { LeadDeliveryException } from '../../../application/exceptions/lead-delivery.exception';
 
 export interface HttpDeliveryFailure {
   endpoint: string;
   status?: number;
   code?: string;
-  retryable: boolean;
+  isRetryable: boolean;
 }
 
-export class HttpLeadDeliveryException extends InfrastructureException {
-  public readonly module = ModuleEnum.LEADS;
+export class HttpLeadDeliveryException extends LeadDeliveryException {
   public readonly details: Record<string, unknown>;
-  public readonly retryable: boolean;
+  public readonly isRetryable: boolean;
 
   constructor(
     private readonly failures: readonly HttpDeliveryFailure[],
     private readonly totalEndpoints: number,
   ) {
     super();
-    this.retryable = failures.some((failure): boolean => failure.retryable);
+    this.isRetryable = failures.some((failure): boolean => failure.isRetryable);
     this.details = { failedEndpoints: failures.map((failure): string => failure.endpoint), totalEndpoints, failures };
   }
 

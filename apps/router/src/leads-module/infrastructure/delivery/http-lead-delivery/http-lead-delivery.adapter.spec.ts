@@ -1,0 +1,132 @@
+import { generateLeadId, LeadEntity } from '@leads-router/common';
+import { Logger } from '@nestjs/common';
+import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
+
+import type { HttpClient } from './http-client/http.client';
+import { HttpLeadDeliveryAdapter } from './http-lead-delivery.adapter';
+import type { HttpLeadDeliveryConfigType } from './http-lead-delivery.config';
+import { HttpLeadDeliveryException } from './http-lead-delivery.exception';
+import { isRetryableHttpError } from './is-retryable-http-error';
+
+const makeConfig = (endpoints: readonly string[]): HttpLeadDeliveryConfigType => ({
+  ENABLED: true,
+  ENDPOINTS: [...endpoints],
+});
+
+// Ответ сети имитируется настоящим AxiosError: адаптер читает status и code,
+// а классификацию выполняет isRetryableHttpError
+const axiosError = (status: number | undefined, code = 'ETIMEDOUT'): AxiosError => {
+  const config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig;
+  const response: AxiosResponse | undefined =
+    status === undefined
+      ? undefined
+      : { status, statusText: '', data: null, headers: {}, config };
+
+  return new AxiosError('request failed', code, config, undefined, response);
+};
+
+describe('HttpLeadDeliveryAdapter', (): void => {
+  let post: jest.MockedFunction<HttpClient['post']>;
+
+  beforeAll((): void => {
+    jest.spyOn(Logger.prototype, 'verbose').mockImplementation((): void => undefined);
+  });
+
+  afterAll((): void => {
+    jest.restoreAllMocks();
+  });
+
+  beforeEach((): void => {
+    post = jest.fn();
+  });
+
+  it('posts the lead to every configured endpoint', async (): Promise<void> => {
+    const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
+    post.mockResolvedValue(undefined);
+    const adapter = new HttpLeadDeliveryAdapter(makeConfig(['http://one.test/leads', 'http://two.test/leads']), {
+      post,
+    } as unknown as HttpClient);
+
+    await adapter.send(lead);
+
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(post).toHaveBeenCalledWith('http://one.test/leads', lead);
+    expect(post).toHaveBeenCalledWith('http://two.test/leads', lead);
+  });
+
+  it.each([
+    [301, false],
+    [400, false],
+    [401, false],
+    [404, false],
+    [422, false],
+    [408, true],
+    [425, true],
+    [429, true],
+    [500, true],
+    [503, true],
+  ])('classifies HTTP %i as isRetryable=%s in the failure details', async (status, isRetryable): Promise<void> => {
+    const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
+    post.mockRejectedValueOnce(axiosError(status));
+    post.mockResolvedValue(undefined);
+    const adapter = new HttpLeadDeliveryAdapter(makeConfig(['http://failing.test/leads', 'http://ok.test/leads']), {
+      post,
+    } as unknown as HttpClient);
+
+    const failing: Promise<void> = adapter.send(lead);
+
+    await expect(failing).rejects.toBeInstanceOf(HttpLeadDeliveryException);
+    // Успешный endpoint тоже получил запрос: fan-out не прерывается первым отказом
+    expect(post).toHaveBeenCalledTimes(2);
+
+    const caught: unknown = await failing.catch((error: unknown): unknown => error);
+    const details = JSON.stringify((caught as HttpLeadDeliveryException).details);
+    expect(details).toContain('"endpoint":"http://failing.test/leads"');
+    expect(details).toContain(`"status":${status.toString()}`);
+    expect(details).toContain(`"isRetryable":${isRetryable ? 'true' : 'false'}`);
+  });
+
+  it('marks the delivery retryable while at least one endpoint failed temporarily', async (): Promise<void> => {
+    const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
+    post.mockRejectedValueOnce(axiosError(400));
+    post.mockRejectedValueOnce(axiosError(503));
+    const adapter = new HttpLeadDeliveryAdapter(makeConfig(['http://permanent.test/leads', 'http://temporary.test/leads']), {
+      post,
+    } as unknown as HttpClient);
+
+    const caught: unknown = await adapter.send(lead).catch((error: unknown): unknown => error);
+
+    expect((caught as HttpLeadDeliveryException).isRetryable).toBe(true);
+  });
+
+  it('marks the delivery permanent when every endpoint failed permanently', async (): Promise<void> => {
+    const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
+    post.mockRejectedValue(axiosError(404));
+    const adapter = new HttpLeadDeliveryAdapter(makeConfig(['http://one.test/leads', 'http://two.test/leads']), {
+      post,
+    } as unknown as HttpClient);
+
+    const caught: unknown = await adapter.send(lead).catch((error: unknown): unknown => error);
+
+    expect((caught as HttpLeadDeliveryException).isRetryable).toBe(false);
+  });
+
+  it('marks a network error without response as retryable', async (): Promise<void> => {
+    const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
+    post.mockRejectedValue(axiosError(undefined, 'ECONNREFUSED'));
+    const adapter = new HttpLeadDeliveryAdapter(makeConfig(['http://one.test/leads']), {
+      post,
+    } as unknown as HttpClient);
+
+    const failing: Promise<void> = adapter.send(lead);
+
+    const caught: unknown = await failing.catch((error: unknown): unknown => error);
+    expect(caught).toBeInstanceOf(HttpLeadDeliveryException);
+    expect((caught as HttpLeadDeliveryException).isRetryable).toBe(true);
+    expect(JSON.stringify((caught as HttpLeadDeliveryException).details)).toContain('"code":"ECONNREFUSED"');
+  });
+
+  it('keeps a non-axios client error retryable', (): void => {
+    expect(isRetryableHttpError(new Error('unexpected client failure'))).toBe(true);
+  });
+});

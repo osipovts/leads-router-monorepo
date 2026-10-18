@@ -1,12 +1,14 @@
-import { InfrastructureException, ModuleEnum } from '@leads-router/common';
+import { LeadDeliveryException } from '../../../application/exceptions/lead-delivery.exception';
+import { isRetryableTelegramError } from './is-retryable-telegram-error';
 
-export class TelegramLeadDeliveryException extends InfrastructureException {
-  public readonly module = ModuleEnum.LEADS;
+export class TelegramLeadDeliveryException extends LeadDeliveryException {
   public readonly cause: unknown;
+  public readonly isRetryable: boolean;
 
   constructor(cause: unknown) {
     super();
     this.cause = cause;
+    this.isRetryable = isRetryableTelegramError(cause);
   }
 
   override get message(): string {

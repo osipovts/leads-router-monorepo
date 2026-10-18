@@ -12,8 +12,9 @@ import type { Job } from 'bullmq';
 import { UnrecoverableError } from 'bullmq';
 import z from 'zod';
 
+import { LeadDeliveryException } from '../../application/exceptions/lead-delivery.exception';
+import { UnsupportedLeadChannelException } from '../../application/exceptions/unsupported-lead-channel.exception';
 import { SendLeadUseCase } from '../../application/use-cases/send-lead.use-case';
-import { isRetryableDeliveryError } from '../../infrastructure/delivery/is-retryable-delivery-error';
 import { type LeadsWorkerConfig, leadsWorkerConfig } from '../../leads.config';
 
 const channelSchema = z.enum(ChannelEnum);
@@ -68,11 +69,27 @@ export class LeadsProcessor extends WorkerHost implements OnApplicationBootstrap
           ? error.toJSON()
           : { error: error instanceof Error ? error.name : 'UnknownError', message: 'Lead delivery failed' };
       const message = JSON.stringify(failure);
-      if (!isRetryableDeliveryError(error)) {
+      if (!this.isRetryable(error)) {
         throw new UnrecoverableError(message);
       }
       throw new Error(message, { cause: error });
     }
+  }
+
+  /**
+   * Повторяемость читается из контракта LeadDeliveryException: воркер не знает
+   * вендорских SDK адаптеров. Неизвестная ошибка остаётся повторяемой,
+   * чтобы новая ошибка не приводила к потере доставки.
+   */
+  private isRetryable(error: unknown): boolean {
+    if (error instanceof UnsupportedLeadChannelException) {
+      return false;
+    }
+    if (error instanceof LeadDeliveryException) {
+      return error.isRetryable;
+    }
+
+    return true;
   }
 
   @OnWorkerEvent('failed')

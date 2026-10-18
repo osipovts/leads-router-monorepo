@@ -1,12 +1,14 @@
-import { InfrastructureException, ModuleEnum } from '@leads-router/common';
+import { LeadDeliveryException } from '../../../application/exceptions/lead-delivery.exception';
+import { isRetryableDatabaseError } from './is-retryable-database-error';
 
-export class DatabaseLeadDeliveryException extends InfrastructureException {
-  public readonly module = ModuleEnum.LEADS;
+export class DatabaseLeadDeliveryException extends LeadDeliveryException {
   public readonly cause: unknown;
+  public readonly isRetryable: boolean;
 
   constructor(cause: unknown) {
     super();
     this.cause = cause;
+    this.isRetryable = isRetryableDatabaseError(cause);
   }
 
   override get message(): string {
