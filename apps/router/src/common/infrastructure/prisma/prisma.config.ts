@@ -22,7 +22,7 @@ export const prismaConfig = registerAs(PRISMA_CONFIG, () => {
   // Клиент принадлежит database-адаптеру: пока доставка выключена, DATABASE_URL не валидируется
   // и может не задаваться в env (см. контракт isDeliveryEnabled)
   if (!isDeliveryEnabled(process.env.DATABASE_LEAD_DELIVERY_ENABLED)) {
-    return { enabled: false, databaseUrl: '', connectionTimeout: 0, statementTimeout: 0 };
+    return { enabled: false, databaseUrl: '', schema: undefined, connectionTimeout: 0, statementTimeout: 0 };
   }
 
   const env = prismaConfigSchema.parse(process.env);
@@ -30,6 +30,9 @@ export const prismaConfig = registerAs(PRISMA_CONFIG, () => {
   return {
     enabled: true,
     databaseUrl: env.DATABASE_URL,
+    // Prisma Migrate берёт схему из параметра ?schema= в DATABASE_URL, а драйвер pg этот параметр
+    // игнорирует: без явной передачи в адаптер запросы ушли бы в search_path, а не в схему миграций
+    schema: new URL(env.DATABASE_URL).searchParams.get('schema') ?? undefined,
     connectionTimeout: env.DATABASE_CONNECTION_TIMEOUT,
     statementTimeout: env.DATABASE_STATEMENT_TIMEOUT,
   };

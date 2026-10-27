@@ -63,6 +63,20 @@ describe('prismaConfig', () => {
     });
   });
 
+  it('takes the query schema from DATABASE_URL, as migrations do', () => {
+    process.env.DATABASE_LEAD_DELIVERY_ENABLED = 'true';
+    process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/leads?schema=review_schema';
+
+    expect(prismaConfig().schema).toBe('review_schema');
+  });
+
+  it('leaves the schema to the connection search_path when DATABASE_URL has none', () => {
+    process.env.DATABASE_LEAD_DELIVERY_ENABLED = 'true';
+    process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/leads';
+
+    expect(prismaConfig().schema).toBeUndefined();
+  });
+
   it('overrides the timeout defaults from env when provided', () => {
     process.env.DATABASE_LEAD_DELIVERY_ENABLED = 'true';
     process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/leads';

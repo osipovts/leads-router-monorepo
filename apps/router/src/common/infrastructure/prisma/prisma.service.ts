@@ -9,11 +9,14 @@ import { prismaConfig } from './prisma.config';
 export class PrismaService extends PrismaClient implements OnModuleInit, OnApplicationShutdown {
   constructor(@Inject(prismaConfig.KEY) private readonly config: PrismaConfigType) {
     super({
-      adapter: new PrismaPg({
-        connectionString: config.databaseUrl,
-        connectionTimeoutMillis: config.connectionTimeout,
-        statement_timeout: config.statementTimeout,
-      }),
+      adapter: new PrismaPg(
+        {
+          connectionString: config.databaseUrl,
+          connectionTimeoutMillis: config.connectionTimeout,
+          statement_timeout: config.statementTimeout,
+        },
+        { schema: config.schema },
+      ),
     });
   }
 
