@@ -17,9 +17,7 @@ export abstract class Exception extends Error implements ExceptionInterface {
     return this.constructor.name;
   }
 
-  public get message(): string {
-    return super.message || 'Internal Server Error';
-  }
+  public abstract override get message(): string;
 
   constructor() {
     super();
