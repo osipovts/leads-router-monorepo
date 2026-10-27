@@ -1,6 +1,6 @@
 import js from '@eslint/js';
 import { defineConfig } from 'eslint/config';
-import prettier from 'eslint-config-prettier';
+import prettierRecommended from 'eslint-plugin-prettier/recommended';
 import simpleImportSort from 'eslint-plugin-simple-import-sort';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
@@ -157,6 +157,7 @@ export default defineConfig(
     extends: [tseslint.configs.disableTypeChecked],
   },
 
-  // отключает конфликтующие правила prettier
-  prettier,
+  // Отключает правила, конфликтующие с prettier (eslint-config-prettier),
+  // и сообщает о расхождениях с форматированием prettier как об ошибках
+  prettierRecommended,
 );
