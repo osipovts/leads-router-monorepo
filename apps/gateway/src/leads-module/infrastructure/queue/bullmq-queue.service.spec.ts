@@ -85,7 +85,7 @@ describe('BullmqQueueService', () => {
       { channel: ChannelEnum.TELEGRAM, lead },
       {
         attempts: CONFIG.attempts,
-        backoff: CONFIG.backoff,
+        backoff: { type: QUEUES.LEADS.BACKOFF_STRATEGY, delay: CONFIG.backoff },
         deduplication: { id: `${lead.id}-telegram`, ttl: DEDUPLICATION_CONFIG.ttlMs },
         removeOnComplete: { age: 3_600 },
         removeOnFail: { age: 2_592_000 },

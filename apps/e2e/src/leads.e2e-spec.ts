@@ -47,7 +47,7 @@ import { TelegramLeadDeliveryAdapter } from '../../router/src/leads-module/infra
 import { LeadsProcessor } from '../../router/src/leads-module/presentation/queue/leads.processor';
 import { type HttpSink, startHttpSink } from './support/http-sink';
 import { type SmtpSink, startSmtpSink } from './support/smtp-sink';
-import { startTelegramApiSink, type TelegramApiSink } from './support/telegram-api-sink';
+import { startTelegramApiSink, type TelegramApiCall, type TelegramApiSink } from './support/telegram-api-sink';
 import { waitFor } from './support/wait-for';
 
 jest.setTimeout(240_000);
@@ -584,6 +584,38 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       expect(delivery.url).toBe('https://api.telegram.org/bot123456:test-token/sendMessage');
       expect(delivery.params.chat_id).toBe('123456789');
       expect(delivery.params.text).toBe(`From: ${lead.name} <${lead.contact}>\nMessage: ${lead.message}`);
+    });
+
+    it('waits the retry_after requested by a 429 before the next attempt', async (): Promise<void> => {
+      await waitForQueueIdle();
+      const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
+      const lead = new LeadEntity(generateLeadId(), 'Telegram flood', 'telegram-flood@test.local', 'hello');
+      const ofLead = (call: TelegramApiCall): boolean => call.params.text.includes(lead.contact);
+      telegramApi.respond = (call: TelegramApiCall): Response | undefined =>
+        ofLead(call) && telegramApi.calls.filter(ofLead).length === 1
+          ? Response.json(
+              { ok: false, error_code: 429, description: 'Too Many Requests', parameters: { retry_after: 1 } },
+              { status: 429 },
+            )
+          : undefined;
+      try {
+        await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
+
+        const [first, second] = await waitFor(
+          (): TelegramApiCall[] | undefined => {
+            const calls = telegramApi.calls.filter(ofLead);
+            return calls.length >= 2 ? calls : undefined;
+          },
+          10_000,
+          'telegram retry after 429',
+        );
+
+        // LEADS_QUEUE_BACKOFF=50: без учёта retry_after повтор пришёл бы через ~50 мс
+        expect(second.at - first.at).toBeGreaterThanOrEqual(1_000);
+      } finally {
+        telegramApi.respond = undefined;
+        errors.mockRestore();
+      }
     });
   });
 

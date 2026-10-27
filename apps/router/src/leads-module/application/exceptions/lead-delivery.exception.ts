@@ -8,4 +8,6 @@ export abstract class LeadDeliveryException extends InfrastructureException {
   public readonly module = ModuleEnum.LEADS;
 
   abstract readonly isRetryable: boolean;
+  /** Пауза перед повтором, о которой попросил получатель; undefined — получатель не просил. */
+  readonly retryAfterMs?: number;
 }

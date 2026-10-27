@@ -41,7 +41,7 @@ export class BullmqQueueService implements QueuePort {
       const job: SendLeadJob = { channel, lead };
       const options = {
         attempts: this.config.attempts,
-        backoff: this.config.backoff,
+        backoff: { type: QUEUES.LEADS.BACKOFF_STRATEGY, delay: this.config.backoff },
         // BullMQ создаёт маркер вместе с задачей. Повтор не продлевает окно дедупликации.
         deduplication: { id: `${lead.id.toLowerCase()}-${channel}`, ttl: this.deduplicationConfig.ttlMs },
         // age задаётся в секундах; BullMQ удаляет старые задачи при завершении следующих.

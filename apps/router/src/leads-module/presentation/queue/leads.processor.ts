@@ -17,6 +17,7 @@ import { UnsupportedLeadChannelException } from '../../application/exceptions/un
 import type { DeliveryCheckpoint } from '../../application/ports/lead-delivery.port';
 import { SendLeadUseCase } from '../../application/use-cases/send-lead.use-case';
 import { leadsWorkerConfig, type LeadsWorkerConfigType } from '../../leads.config';
+import { leadBackoffStrategy } from './lead-backoff.strategy';
 
 const channelSchema = z.enum(ChannelEnum);
 const deliveredDestinationsSchema = z.array(z.string()).default([]);
@@ -25,7 +26,7 @@ const metadataSchema = z.object({
   lead: z.object({ id: z.string().regex(LeadEntityValidation.id.pattern) }),
 });
 
-@Processor(QUEUES.LEADS.QUEUE_NAME)
+@Processor(QUEUES.LEADS.QUEUE_NAME, { settings: { backoffStrategy: leadBackoffStrategy } })
 export class LeadsProcessor extends WorkerHost implements OnApplicationBootstrap, BeforeApplicationShutdown {
   private readonly logger = new Logger(LeadsProcessor.name);
   private initialized = false;

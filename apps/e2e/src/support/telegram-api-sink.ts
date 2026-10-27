@@ -1,10 +1,13 @@
 export interface TelegramApiCall {
   url: string;
   params: Record<string, string>;
+  at: number;
 }
 
 export interface TelegramApiSink {
   calls: TelegramApiCall[];
+  // Ответ вместо успешного; undefined — Telegram принимает сообщение
+  respond: ((call: TelegramApiCall) => Response | undefined) | undefined;
   restore(): void;
 }
 
@@ -33,7 +36,13 @@ export function startTelegramApiSink(token: string): TelegramApiSink {
     const rawBody = init?.body;
     const params: Record<string, string> = rawBody instanceof URLSearchParams ? Object.fromEntries(rawBody) : {};
 
-    calls.push({ url, params });
+    const call: TelegramApiCall = { url, params, at: Date.now() };
+    calls.push(call);
+
+    const override = sink.respond?.(call);
+    if (override !== undefined) {
+      return override;
+    }
 
     return new Response(JSON.stringify({ ok: true, result: { message_id: calls.length } }), {
       status: 200,
@@ -43,10 +52,13 @@ export function startTelegramApiSink(token: string): TelegramApiSink {
 
   globalThis.fetch = stubbedFetch;
 
-  return {
+  const sink: TelegramApiSink = {
     calls,
+    respond: undefined,
     restore: () => {
       globalThis.fetch = originalFetch;
     },
   };
+
+  return sink;
 }
