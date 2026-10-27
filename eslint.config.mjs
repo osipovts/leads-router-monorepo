@@ -16,7 +16,7 @@ export default defineConfig(
 
   // Общие настройки JS/TS
   {
-    files: ['**/*.{js,mjs,cjs,ts,mts,cts}'],
+    files: ['**/*.{js,mjs,cjs,ts,mts,cts,tsx}'],
 
     languageOptions: {
       ecmaVersion: 'latest',
@@ -50,7 +50,7 @@ export default defineConfig(
 
   // Только TypeScript
   {
-    files: ['**/*.{ts,mts,cts}'],
+    files: ['**/*.{ts,mts,cts,tsx}'],
 
     // Строгие правила TypeScript
     extends: [

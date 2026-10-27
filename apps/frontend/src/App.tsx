@@ -1,11 +1,11 @@
+import type { ChangeEvent, ReactElement, SubmitEvent } from 'react';
 import { useState } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
 
 import { sendLead } from './api';
 
 const EMPTY_FORM = { name: '', contact: '', message: '' };
 
-export function App() {
+export function App(): ReactElement {
   const [form, setForm] = useState(EMPTY_FORM);
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -14,14 +14,15 @@ export function App() {
   // Поля заблокированы на время запроса: иначе отправленная форма и её id разошлись бы
   const sending = status === 'sending';
 
-  const handleChange = (field: keyof typeof EMPTY_FORM) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setForm((prev) => ({ ...prev, [field]: event.target.value }));
-    // Изменённая форма — уже другой лид, его нельзя склеивать с прежним через дедупликацию
-    setLeadId(crypto.randomUUID());
-  };
+  const handleChange =
+    (field: keyof typeof EMPTY_FORM) =>
+    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>): void => {
+      setForm((prev) => ({ ...prev, [field]: event.target.value }));
+      // Изменённая форма — уже другой лид, его нельзя склеивать с прежним через дедупликацию
+      setLeadId(crypto.randomUUID());
+    };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const submit = async (): Promise<void> => {
     setStatus('sending');
     setError(null);
 
@@ -34,6 +35,11 @@ export function App() {
       setStatus('idle');
       setError(e instanceof Error ? e.message : 'Неизвестная ошибка');
     }
+  };
+
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    void submit();
   };
 
   return (
@@ -56,7 +62,14 @@ export function App() {
 
         <label>
           Сообщение
-          <textarea value={form.message} onChange={handleChange('message')} disabled={sending} required maxLength={2048} rows={4} />
+          <textarea
+            value={form.message}
+            onChange={handleChange('message')}
+            disabled={sending}
+            required
+            maxLength={2048}
+            rows={4}
+          />
         </label>
 
         <button type="submit" disabled={sending}>
