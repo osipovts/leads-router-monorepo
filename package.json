@@ -9,7 +9,8 @@
     "start:dev": "pnpm --parallel --filter @leads-router/common --filter @leads-router/gateway --filter @leads-router/router start:dev",
     "start:frontend": "pnpm --filter @leads-router/frontend start:dev",
     "test:unit": "pnpm --filter @leads-router/common build && pnpm --filter @leads-router/router prisma:generate && pnpm --filter @leads-router/common --filter @leads-router/gateway --filter @leads-router/router test",
-    "test:e2e": "pnpm --filter @leads-router/common build && pnpm --filter @leads-router/router prisma:generate && pnpm --filter @leads-router/e2e test"
+    "test:e2e": "pnpm --filter @leads-router/common build && pnpm --filter @leads-router/router prisma:generate && pnpm --filter @leads-router/e2e test",
+    "typecheck": "pnpm --filter @leads-router/common build && pnpm --filter @leads-router/router prisma:generate && pnpm -r typecheck"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.6",

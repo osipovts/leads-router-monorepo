@@ -64,5 +64,6 @@ docker compose up --build
 
 ```
 pnpm test:unit
+pnpm typecheck
 pnpm test:e2e
 ```
