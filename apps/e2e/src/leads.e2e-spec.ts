@@ -12,29 +12,23 @@ import {
   type SendLeadJob,
 } from '@leads-router/common';
 import { getQueueToken } from '@nestjs/bullmq';
+// e2e, gateway и router должны разделять один экземпляр Nest: две копии в одном процессе
+// сломали бы DI-контейнеры и instanceof-проверки, а подмена Logger.prototype не перехватила бы
+// логи приложений. pnpm схлопывает их при одинаковых версиях и peer-зависимостях — это проверяет
+// тест 'shares one Nest instance with gateway and router'
+import { type INestApplication, Logger, VersioningType } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { Job, Queue } from 'bullmq';
 import request from 'supertest';
 import { GenericContainer, type StartedTestContainer, Wait } from 'testcontainers';
 
-import {
-  type INestApplication,
-  Logger as GatewayLogger,
-  VersioningType,
-} from '../../gateway/node_modules/@nestjs/common';
-// Импорт из дерева gateway гарантирует тот же самый экземпляр @nestjs/core,
-// который создаёт приложение: две копии Nest в одном процессе
-// сломали бы DI-контейнеры и instanceof-проверки
-import { NestFactory } from '../../gateway/node_modules/@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '../../gateway/node_modules/@nestjs/swagger';
 import { AppModule as GatewayAppModule } from '../../gateway/src/app.module';
 import { HttpExceptionFilter } from '../../gateway/src/common/presentation/http/http-exception.filter';
 import { HttpLoggingInterceptor } from '../../gateway/src/common/presentation/http/http-logging.interceptor';
 import { HttpValidationPipe } from '../../gateway/src/common/presentation/http/http-validation.pipe';
 import { BullmqQueueService } from '../../gateway/src/leads-module/infrastructure/queue/bullmq-queue.service';
 import { leadsQueueConfig, type LeadsQueueConfigType } from '../../gateway/src/leads-module/leads.config';
-// Logger из дерева router это тот же класс, экземпляры которого используют
-// адаптеры доставки: подмена методов prototype перехватывает их вызовы.
-import { Logger as RouterLogger } from '../../router/node_modules/@nestjs/common';
 import { AppModule as RouterAppModule } from '../../router/src/app.module';
 import { PrismaService } from '../../router/src/common/infrastructure/prisma/prisma.service';
 import { SendLeadUseCase } from '../../router/src/leads-module/application/use-cases/send-lead.use-case';
@@ -215,9 +209,9 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     telegramApi = startTelegramApiSink('123456:test-token');
 
     // Nest Logger захватывает ссылки на console при создании экземпляров,
-    // поэтому перехватываются методы prototype класса из дерева router.
-    adapterLog = jest.spyOn(RouterLogger.prototype, 'log').mockImplementation(() => undefined);
-    useCaseVerbose = jest.spyOn(RouterLogger.prototype, 'verbose').mockImplementation(() => undefined);
+    // поэтому перехватываются методы prototype класса.
+    adapterLog = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    useCaseVerbose = jest.spyOn(Logger.prototype, 'verbose').mockImplementation(() => undefined);
     jest.spyOn(console, 'log').mockImplementation(() => undefined);
     jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 
@@ -254,9 +248,17 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
   });
 
   // Gateway tests
+  it('shares one Nest instance with gateway and router', (): void => {
+    for (const app of ['gateway', 'router']) {
+      for (const pkg of ['@nestjs/common', '@nestjs/core']) {
+        expect(require.resolve(pkg, { paths: [join(__dirname, '..', '..', app)] })).toBe(require.resolve(pkg));
+      }
+    }
+  });
+
   describe('gateway', () => {
     it('logs the final HTTP status after validation and error mapping', async (): Promise<void> => {
-      const debug = jest.spyOn(GatewayLogger.prototype, 'debug').mockImplementation((): void => undefined);
+      const debug = jest.spyOn(Logger.prototype, 'debug').mockImplementation((): void => undefined);
       try {
         await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send({ name: '' }).expect(400);
         expect(debug).toHaveBeenCalledWith(expect.stringContaining('status=400'));
@@ -380,7 +382,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
 
     it('fails database jobs while postgres is down and recovers after a restart', async (): Promise<void> => {
       await waitForQueueIdle();
-      const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
+      const errors = jest.spyOn(Logger.prototype, 'error').mockImplementation((): void => undefined);
       // restart() у testcontainers повторно применяет wait-strategy со счетчиком повторений
       // лога, который перезапущенный postgres уже не выдаёт, поэтому контейнер
       // останавливается без удаления и поднимается docker start без ожидания готовности
@@ -461,7 +463,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       });
       const config = routerApp.get<HttpLeadDeliveryConfigType>(httpLeadDeliveryConfig.KEY);
       const endpoints = config.endpoints;
-      const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
+      const errors = jest.spyOn(Logger.prototype, 'error').mockImplementation((): void => undefined);
       const lead = new LeadEntity(generateLeadId(), 'HTTP retry', 'http-retry@test.local', 'hello');
       config.endpoints = [...endpoints, `http://127.0.0.1:${failing.port.toString()}/leads`];
       try {
@@ -498,7 +500,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       const failing = await startHttpSink({ respond: (): { status: number } => ({ status: 400 }) });
       const config = routerApp.get<HttpLeadDeliveryConfigType>(httpLeadDeliveryConfig.KEY);
       const endpoints = config.endpoints;
-      const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
+      const errors = jest.spyOn(Logger.prototype, 'error').mockImplementation((): void => undefined);
       const lead = new LeadEntity(generateLeadId(), 'HTTP rejected', 'http-rejected@test.local', 'hello');
       config.endpoints = [`http://127.0.0.1:${failing.port.toString()}/leads`];
       try {
@@ -520,7 +522,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       await waitForQueueIdle();
       const config = routerApp.get<HttpLeadDeliveryConfigType>(httpLeadDeliveryConfig.KEY);
       const endpoints = config.endpoints;
-      const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
+      const errors = jest.spyOn(Logger.prototype, 'error').mockImplementation((): void => undefined);
       const lead = new LeadEntity(generateLeadId(), 'HTTP network', 'http-network@test.local', 'hello');
       // Порт 9 (discard) закрыт: соединение отклоняется мгновенно
       config.endpoints = ['http://127.0.0.1:9/leads'];
@@ -544,7 +546,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       });
       const config = routerApp.get<HttpLeadDeliveryConfigType>(httpLeadDeliveryConfig.KEY);
       const endpoints = config.endpoints;
-      const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
+      const errors = jest.spyOn(Logger.prototype, 'error').mockImplementation((): void => undefined);
       const lead = new LeadEntity(generateLeadId(), 'HTTP size', 'http-size@test.local', 'hello');
       config.endpoints = [`http://127.0.0.1:${oversized.port.toString()}/leads`];
       try {
@@ -595,7 +597,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
 
     it('waits the retry_after requested by a 429 before the next attempt', async (): Promise<void> => {
       await waitForQueueIdle();
-      const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
+      const errors = jest.spyOn(Logger.prototype, 'error').mockImplementation((): void => undefined);
       const lead = new LeadEntity(generateLeadId(), 'Telegram flood', 'telegram-flood@test.local', 'hello');
       const ofLead = (call: TelegramApiCall): boolean => call.params.text.includes(lead.contact);
       telegramApi.respond = (call: TelegramApiCall): Response | undefined =>
@@ -648,7 +650,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     });
 
     it('refuses to send credentials and the lead over SMTP without STARTTLS', async (): Promise<void> => {
-      const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
+      const errors = jest.spyOn(Logger.prototype, 'error').mockImplementation((): void => undefined);
       const client = new EmailClient({
         ...routerApp.get<EmailClientConfigType>(emailClientConfig.KEY),
         requireTLS: true,
@@ -822,7 +824,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     it('returns 503 within the Redis command budget and recovers after Redis resumes', async (): Promise<void> => {
       await waitForQueueIdle();
       const lead = new LeadEntity(generateLeadId(), 'Redis timeout', 'redis-timeout@test.local', 'hello');
-      const errors = jest.spyOn(GatewayLogger.prototype, 'error').mockImplementation((): void => undefined);
+      const errors = jest.spyOn(Logger.prototype, 'error').mockImplementation((): void => undefined);
       await redis.exec(['redis-cli', 'CLIENT', 'PAUSE', '8000', 'ALL']);
       try {
         const startedAt = Date.now();
