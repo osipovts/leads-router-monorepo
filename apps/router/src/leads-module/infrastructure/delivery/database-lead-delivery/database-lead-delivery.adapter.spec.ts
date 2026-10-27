@@ -80,4 +80,31 @@ describe('DatabaseLeadDeliveryAdapter', (): void => {
     expect(new DatabaseLeadDeliveryException(new Error('unknown')).isRetryable).toBe(true);
     expect(new DatabaseLeadDeliveryException(cyclic).isRetryable).toBe(true);
   });
+
+  describe('failure details', (): void => {
+    it('keeps the Prisma error code', (): void => {
+      const failure = new Prisma.PrismaClientKnownRequestError('value too long', {
+        code: 'P2000',
+        clientVersion: 'test',
+      });
+
+      expect(new DatabaseLeadDeliveryException(failure).toJSON().details).toEqual({ code: 'P2000' });
+    });
+
+    it('keeps the code of a wrapped unavailability error', (): void => {
+      const initialization = new Prisma.PrismaClientInitializationError('cannot reach the server', 'test', 'P1001');
+      const network = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+
+      expect(
+        new DatabaseLeadDeliveryException(new DatabaseUnavailableException(initialization)).toJSON().details,
+      ).toEqual({ code: 'P1001' });
+      expect(new DatabaseLeadDeliveryException(new DatabaseUnavailableException(network)).toJSON().details).toEqual({
+        code: 'ECONNREFUSED',
+      });
+    });
+
+    it('adds no details for an unknown failure', (): void => {
+      expect(new DatabaseLeadDeliveryException(new Error('unknown')).toJSON()).not.toHaveProperty('details');
+    });
+  });
 });

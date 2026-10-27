@@ -1,6 +1,6 @@
 import { generateLeadId, LeadEntity } from '@leads-router/common';
 import { Logger } from '@nestjs/common';
-import { TelegramApiError } from 'node-telegram-bot-api';
+import { NetworkError, TelegramApiError } from 'node-telegram-bot-api';
 
 import type { TelegramClient } from './telegram-client/telegram.client';
 import { TelegramLeadDeliveryAdapter } from './telegram-lead-delivery.adapter';
@@ -70,5 +70,26 @@ describe('TelegramLeadDeliveryAdapter', (): void => {
 
     expect(new TelegramLeadDeliveryException(new Error('unknown')).isRetryable).toBe(true);
     expect(new TelegramLeadDeliveryException(cyclic).isRetryable).toBe(true);
+  });
+
+  describe('failure details', (): void => {
+    it('keeps the Telegram error code and description', (): void => {
+      const failure = new TelegramApiError(403, 'Forbidden: bot was blocked by the user');
+
+      expect(new TelegramLeadDeliveryException(failure).toJSON().details).toEqual({
+        errorCode: 403,
+        description: 'Forbidden: bot was blocked by the user',
+      });
+    });
+
+    it('keeps the transport error code of a wrapped network failure', (): void => {
+      const failure = new Error('send failed', { cause: new NetworkError('Network request failed: sendMessage') });
+
+      expect(new TelegramLeadDeliveryException(failure).toJSON().details).toEqual({ code: 'EFETCH' });
+    });
+
+    it('adds no details for an unknown failure', (): void => {
+      expect(new TelegramLeadDeliveryException(new Error('unknown')).toJSON()).not.toHaveProperty('details');
+    });
   });
 });

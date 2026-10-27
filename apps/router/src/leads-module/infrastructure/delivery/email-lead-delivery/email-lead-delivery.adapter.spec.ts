@@ -66,4 +66,23 @@ describe('EmailLeadDeliveryAdapter', (): void => {
   it('keeps unknown errors retryable', (): void => {
     expect(new EmailLeadDeliveryException(new Error('unknown')).isRetryable).toBe(true);
   });
+
+  describe('failure details', (): void => {
+    it('keeps the SMTP codes without the server response text', (): void => {
+      const failure = Object.assign(new Error('Message failed'), {
+        code: 'EENVELOPE',
+        responseCode: 550,
+        response: '550 5.1.1 <ivan@example.com>: Recipient address rejected',
+      });
+
+      const json = new EmailLeadDeliveryException(failure).toJSON();
+
+      expect(json.details).toEqual({ code: 'EENVELOPE', responseCode: 550 });
+      expect(JSON.stringify(json)).not.toContain('ivan@example.com');
+    });
+
+    it('adds no details for an unknown failure', (): void => {
+      expect(new EmailLeadDeliveryException(new Error('unknown')).toJSON()).not.toHaveProperty('details');
+    });
+  });
 });
