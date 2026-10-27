@@ -26,7 +26,7 @@ export class BullmqQueueService implements QueuePort {
     });
   }
 
-  async sendLead(channel: ChannelEnum, lead: LeadEntity, attempts: number, backoff: number): Promise<void> {
+  async sendLead(channel: ChannelEnum, lead: LeadEntity): Promise<void> {
     // До первого подключения BullMQ может ждать Redis без ограничения времени.
     if (this.leadsQueue.getBackend().connection.status !== 'ready') {
       // Штатная деградация, а не сбой: ошибки соединения уже логируются слушателем 'error'
@@ -40,8 +40,8 @@ export class BullmqQueueService implements QueuePort {
       const jobName = QUEUES.LEADS.JOBS.SEND;
       const job: SendLeadJob = { channel, lead };
       const options = {
-        attempts,
-        backoff,
+        attempts: this.config.attempts,
+        backoff: this.config.backoff,
         // BullMQ создаёт маркер вместе с задачей. Повтор не продлевает окно дедупликации.
         deduplication: { id: `${lead.id.toLowerCase()}-${channel}`, ttl: this.deduplicationConfig.ttlMs },
         // age задаётся в секундах; BullMQ удаляет старые задачи при завершении следующих.

@@ -1,28 +1,20 @@
 import { ChannelEnum, generateLeadId, InfrastructureException, LeadEntity } from '@leads-router/common';
 import { Logger } from '@nestjs/common';
 
-import type { LeadsQueueConfigType } from '../../leads.config';
 import { EnqueueFailedException } from '../exceptions/enqueue-failed.exception';
 import type { QueuePort } from '../ports/queue.port';
 import { BroadcastLeadUseCase } from './broadcast-lead.use-case';
 
-const CONFIG = {
-  attempts: 3,
-  backoff: 5_000,
-  completedRetentionMs: 3_600_000,
-  failedRetentionMs: 2_592_000_000,
-} satisfies LeadsQueueConfigType;
-
 class QueueFake implements QueuePort {
-  readonly sent: Array<{ channel: ChannelEnum; lead: LeadEntity; attempts: number; backoff: number }> = [];
+  readonly sent: Array<{ channel: ChannelEnum; lead: LeadEntity }> = [];
   readonly failChannels = new Set<ChannelEnum>();
 
-  sendLead(channel: ChannelEnum, lead: LeadEntity, attempts: number, backoff: number): Promise<void> {
+  sendLead(channel: ChannelEnum, lead: LeadEntity): Promise<void> {
     if (this.failChannels.has(channel)) {
       return Promise.reject(new Error(`enqueue failed for '${channel}'`));
     }
 
-    this.sent.push({ channel, lead, attempts, backoff });
+    this.sent.push({ channel, lead });
     return Promise.resolve();
   }
 }
@@ -44,10 +36,10 @@ describe('BroadcastLeadUseCase', () => {
 
   beforeEach((): void => {
     queue = new QueueFake();
-    useCase = new BroadcastLeadUseCase(CONFIG, queue);
+    useCase = new BroadcastLeadUseCase(queue);
   });
 
-  it('enqueues a lead to every channel with retry options', async (): Promise<void> => {
+  it('enqueues a lead to every channel', async (): Promise<void> => {
     const lead = makeLead();
 
     await useCase.execute(lead);
@@ -55,8 +47,6 @@ describe('BroadcastLeadUseCase', () => {
     expect(queue.sent.map(({ channel }): ChannelEnum => channel)).toEqual(Object.values(ChannelEnum));
     for (const entry of queue.sent) {
       expect(entry.lead).toBe(lead);
-      expect(entry.attempts).toBe(CONFIG.attempts);
-      expect(entry.backoff).toBe(CONFIG.backoff);
     }
   });
 

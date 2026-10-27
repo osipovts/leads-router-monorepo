@@ -78,7 +78,7 @@ describe('BullmqQueueService', () => {
   it('adds a job with retries, retention and atomic deduplication per channel', async (): Promise<void> => {
     const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
 
-    await service.sendLead(ChannelEnum.TELEGRAM, lead, CONFIG.attempts, CONFIG.backoff);
+    await service.sendLead(ChannelEnum.TELEGRAM, lead);
 
     expect(add).toHaveBeenCalledWith(
       QUEUES.LEADS.JOBS.SEND,
@@ -96,8 +96,8 @@ describe('BullmqQueueService', () => {
   it('uses different deduplication keys for different channels', async (): Promise<void> => {
     const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
 
-    await service.sendLead(ChannelEnum.EMAIL, lead, CONFIG.attempts, CONFIG.backoff);
-    await service.sendLead(ChannelEnum.TELEGRAM, lead, CONFIG.attempts, CONFIG.backoff);
+    await service.sendLead(ChannelEnum.EMAIL, lead);
+    await service.sendLead(ChannelEnum.TELEGRAM, lead);
 
     expect(add.mock.calls[0][2]?.deduplication?.id).not.toBe(add.mock.calls[1][2]?.deduplication?.id);
   });
@@ -107,8 +107,8 @@ describe('BullmqQueueService', () => {
     const upper = new LeadEntity(id, 'Ivan', 'ivan@example.com', 'hello');
     const lower = new LeadEntity(id.toLowerCase(), upper.name, upper.contact, upper.message);
 
-    await service.sendLead(ChannelEnum.EMAIL, upper, CONFIG.attempts, CONFIG.backoff);
-    await service.sendLead(ChannelEnum.EMAIL, lower, CONFIG.attempts, CONFIG.backoff);
+    await service.sendLead(ChannelEnum.EMAIL, upper);
+    await service.sendLead(ChannelEnum.EMAIL, lower);
 
     expect(add.mock.calls[0][2]?.deduplication?.id).toBe(add.mock.calls[1][2]?.deduplication?.id);
   });
@@ -126,9 +126,7 @@ describe('BullmqQueueService', () => {
     connectionStatus = 'initializing';
     const lead = new LeadEntity(generateLeadId(), 'Ivan', 'ivan@example.com', 'hello');
 
-    await expect(service.sendLead(ChannelEnum.EMAIL, lead, CONFIG.attempts, CONFIG.backoff)).rejects.toBeInstanceOf(
-      QueueUnavailableException,
-    );
+    await expect(service.sendLead(ChannelEnum.EMAIL, lead)).rejects.toBeInstanceOf(QueueUnavailableException);
     expect(add).not.toHaveBeenCalled();
     // Отказ до подключения — штатная деградация: error-уровень не задействуется
     expect(loggerError).not.toHaveBeenCalled();
@@ -138,9 +136,7 @@ describe('BullmqQueueService', () => {
     add.mockRejectedValue(new Error('connection refused'));
     const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
 
-    await expect(service.sendLead(ChannelEnum.EMAIL, lead, CONFIG.attempts, CONFIG.backoff)).rejects.toBeInstanceOf(
-      QueueUnavailableException,
-    );
+    await expect(service.sendLead(ChannelEnum.EMAIL, lead)).rejects.toBeInstanceOf(QueueUnavailableException);
     expect(loggerError).toHaveBeenCalledTimes(1);
     const loggedJson = JSON.stringify(loggerError.mock.calls);
 
