@@ -8,6 +8,7 @@ import { HttpLeadDeliveryAdapter } from './http-lead-delivery.adapter';
 import type { HttpLeadDeliveryConfigType } from './http-lead-delivery.config';
 import { HttpLeadDeliveryException } from './http-lead-delivery.exception';
 import { isRetryableHttpError } from './is-retryable-http-error';
+import { redactUrl } from './redact-url';
 
 const makeConfig = (endpoints: readonly string[]): HttpLeadDeliveryConfigType => ({
   enabled: true,
@@ -89,7 +90,7 @@ describe('HttpLeadDeliveryAdapter', (): void => {
 
     const caught: unknown = await failing.catch((error: unknown): unknown => error);
     const details = JSON.stringify((caught as HttpLeadDeliveryException).details);
-    expect(details).toContain('"endpoint":"http://failing.test/leads"');
+    expect(details).toContain(`"endpoint":"${redactUrl('http://failing.test/leads')}"`);
     expect(details).toContain(`"status":${status.toString()}`);
     expect(details).toContain(`"isRetryable":${isRetryable ? 'true' : 'false'}`);
   });
@@ -98,14 +99,14 @@ describe('HttpLeadDeliveryAdapter', (): void => {
     const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
     post.mockRejectedValue(axiosError(503));
     const adapter = new HttpLeadDeliveryAdapter(
-      makeConfig(['https://user:s3cret-pass@failing.test/leads?api_key=s3cret-key']),
+      makeConfig(['https://user:s3cret-pass@failing.test/hooks/s3cret-token?api_key=s3cret-key']),
       { post } as unknown as HttpClient,
     );
 
     const caught: unknown = await adapter.send(lead, makeCheckpoint()).catch((error: unknown): unknown => error);
 
     const serialized = JSON.stringify(caught);
-    expect(serialized).toContain('failing.test/leads');
+    expect(serialized).toContain('https://failing.test [');
     expect(serialized).not.toContain('s3cret');
   });
 

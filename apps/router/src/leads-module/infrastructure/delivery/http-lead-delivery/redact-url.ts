@@ -1,24 +1,12 @@
-const REDACTED = '***';
+import { endpointKey } from './endpoint-key';
 
 /**
- * URL для логов и ошибок задач: учётные данные и значения query (ключи API, токены)
- * заменяются маской, хост и путь остаются, чтобы эндпоинт можно было опознать.
+ * URL для логов и ошибок задач: остаётся только origin, а путь, query и учётные данные
+ * отбрасываются — в любом из них может лежать секрет (токен вебхука в пути, ключ API в query).
+ * Эндпоинты одного хоста различаются по префиксу их endpointKey.
  */
 export function redactUrl(url: string): string {
-  const parsed = URL.parse(url);
-  if (parsed === null) {
-    return REDACTED;
-  }
+  const origin = URL.parse(url)?.origin ?? '***';
 
-  if (parsed.username !== '') {
-    parsed.username = REDACTED;
-  }
-  if (parsed.password !== '') {
-    parsed.password = REDACTED;
-  }
-  for (const key of new Set(parsed.searchParams.keys())) {
-    parsed.searchParams.set(key, REDACTED);
-  }
-
-  return parsed.toString();
+  return `${origin} [${endpointKey(url).slice(0, 12)}]`;
 }

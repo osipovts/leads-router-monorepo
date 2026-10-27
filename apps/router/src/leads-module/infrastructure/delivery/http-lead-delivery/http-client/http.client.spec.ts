@@ -2,6 +2,8 @@ import { Logger } from '@nestjs/common';
 import type { AxiosResponse } from 'axios';
 import axios, { Axios, AxiosError, AxiosHeaders } from 'axios';
 
+import { endpointKey } from '../endpoint-key';
+import { redactUrl } from '../redact-url';
 import { HttpClient } from './http.client';
 
 describe('HttpClient', (): void => {
@@ -53,10 +55,13 @@ describe('HttpClient', (): void => {
       request.mockRejectedValue(error);
 
       await expect(client.post('http://sink.test/leads', {})).rejects.toBe(error);
-      expect(loggerError).toHaveBeenCalledWith(expect.stringContaining('<- POST http://sink.test/leads 503'), {
-        code: AxiosError.ERR_BAD_RESPONSE,
-        status: 503,
-      });
+      expect(loggerError).toHaveBeenCalledWith(
+        expect.stringContaining(`<- POST ${redactUrl('http://sink.test/leads')} 503`),
+        {
+          code: AxiosError.ERR_BAD_RESPONSE,
+          status: 503,
+        },
+      );
     });
 
     it('rethrows a network error without a response and logs its code', async (): Promise<void> => {
@@ -65,7 +70,7 @@ describe('HttpClient', (): void => {
 
       await expect(client.post('http://sink.test/leads', {})).rejects.toBe(error);
       expect(loggerError).toHaveBeenCalledWith(
-        expect.stringContaining('<- POST http://sink.test/leads AxiosError: connect ECONNREFUSED'),
+        expect.stringContaining(`<- POST ${redactUrl('http://sink.test/leads')} AxiosError: connect ECONNREFUSED`),
         { code: 'ECONNREFUSED', status: undefined },
       );
     });
@@ -74,13 +79,15 @@ describe('HttpClient', (): void => {
       const loggerDebug = jest.spyOn(Logger.prototype, 'debug').mockImplementation((): void => undefined);
       request.mockRejectedValueOnce(new AxiosError('connect ECONNREFUSED', 'ECONNREFUSED'));
       request.mockResolvedValueOnce({ status: 200, data: null });
-      const url = 'https://user:s3cret-pass@sink.test/leads?api_key=s3cret-key';
+      // Вебхуки вроде Slack держат токен в пути, поэтому маскируется и он
+      const url = 'https://user:s3cret-pass@sink.test/hooks/s3cret-token?api_key=s3cret-key';
 
       await expect(client.post(url, {})).rejects.toBeInstanceOf(AxiosError);
       await client.post(url, {});
 
       const logged = JSON.stringify([...loggerError.mock.calls, ...loggerDebug.mock.calls]);
-      expect(logged).toContain('sink.test/leads');
+      // Эндпоинт опознаётся по origin и префиксу его ключа
+      expect(logged).toContain(`https://sink.test [${endpointKey(url).slice(0, 12)}]`);
       expect(logged).not.toContain('s3cret');
     });
 
@@ -90,7 +97,7 @@ describe('HttpClient', (): void => {
 
       await expect(client.post('http://sink.test/leads', {})).rejects.toBe(error);
       expect(loggerError).toHaveBeenCalledWith(
-        expect.stringContaining('<- POST http://sink.test/leads UNKNOWN ERROR'),
+        expect.stringContaining(`<- POST ${redactUrl('http://sink.test/leads')} UNKNOWN ERROR`),
         'serializer exploded',
       );
     });
