@@ -157,6 +157,23 @@ describe('BullmqQueueService', () => {
     expect(loggedJson).not.toContain(lead.message);
   });
 
+  it('does not log the Redis command arguments carried by a reply error', async (): Promise<void> => {
+    const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
+    // ioredis ReplyError хранит в command.args сериализованную задачу вместе с данными лида
+    const replyError = Object.assign(new Error('OOM command not allowed'), {
+      command: { name: 'evalsha', args: [JSON.stringify({ channel: ChannelEnum.EMAIL, lead })] },
+    });
+    add.mockRejectedValue(replyError);
+
+    await expect(service.sendLead(ChannelEnum.EMAIL, lead)).rejects.toBeInstanceOf(QueueUnavailableException);
+    expect(loggerError).toHaveBeenCalledWith({
+      channel: ChannelEnum.EMAIL,
+      leadId: lead.id,
+      error: 'Error',
+      message: 'OOM command not allowed',
+    });
+  });
+
   it('maps to the infrastructure layer for the http exception mapper', (): void => {
     expect(new QueueUnavailableException()).toBeInstanceOf(InfrastructureException);
   });

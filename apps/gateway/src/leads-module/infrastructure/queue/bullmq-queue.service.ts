@@ -56,7 +56,13 @@ export class BullmqQueueService implements QueuePort {
       await this.leadsQueue.add(jobName, job, options);
     } catch (error: unknown) {
       // Данные лида не записываются в лог: contact и message могут содержать персональные данные.
-      this.logger.error({ channel, leadId: lead.id, error });
+      // Объект ошибки целиком не логируется: ReplyError ioredis несёт в command.args сериализованную задачу.
+      this.logger.error({
+        channel,
+        leadId: lead.id,
+        error: error instanceof Error ? error.name : 'UnknownError',
+        message: error instanceof Error ? error.message : String(error),
+      });
       throw new QueueUnavailableException();
     }
   }
