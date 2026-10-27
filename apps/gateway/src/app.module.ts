@@ -3,9 +3,11 @@ import { BullModule, type BullRootModuleOptions } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerGuard, ThrottlerModule, type ThrottlerModuleOptions } from '@nestjs/throttler';
 
 import { appConfig } from './app.config';
+import { RedisThrottlerStorage } from './common/infrastructure/redis-throttler.storage';
+import { RedisThrottlerStorageModule } from './common/infrastructure/redis-throttler-storage.module';
 import { swaggerConfig } from './common/infrastructure/swagger.config';
 import { throttlerConfig, type ThrottlerConfigType } from './common/infrastructure/throttler.config';
 import { LeadsModule } from './leads-module/leads.module';
@@ -14,10 +16,11 @@ import { LeadsModule } from './leads-module/leads.module';
   imports: [
     ConfigModule.forRoot({ load: [appConfig, swaggerConfig] }),
     ThrottlerModule.forRootAsync({
-      imports: [ConfigModule.forFeature(throttlerConfig)],
-      inject: [throttlerConfig.KEY],
-      useFactory: (config: ThrottlerConfigType) => ({
+      imports: [ConfigModule.forFeature(throttlerConfig), RedisThrottlerStorageModule],
+      inject: [throttlerConfig.KEY, RedisThrottlerStorage],
+      useFactory: (config: ThrottlerConfigType, storage: RedisThrottlerStorage): ThrottlerModuleOptions => ({
         throttlers: [{ ttl: config.ttlMs, limit: config.limit }],
+        storage,
       }),
     }),
     BullModule.forRootAsync({

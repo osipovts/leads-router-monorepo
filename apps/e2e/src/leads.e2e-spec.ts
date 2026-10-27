@@ -57,6 +57,21 @@ const silently = async (action: () => unknown): Promise<void> => {
   }
 };
 
+// Настройка повторяет gateway main.ts: версия API, префикс и глобальные
+// обработчики регистрируются при запуске, а не в AppModule.
+const startGateway = async (): Promise<INestApplication<HttpServer>> => {
+  const app = await NestFactory.create<INestApplication<HttpServer>>(GatewayAppModule);
+  app.enableVersioning({ type: VersioningType.URI });
+  app.setGlobalPrefix('api');
+  app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalInterceptors(new HttpLoggingInterceptor());
+  app.useGlobalPipes(new HttpValidationPipe());
+  // Общий сервер остаётся открытым до afterAll, в том числе для параллельных запросов supertest.
+  await app.listen(0, '127.0.0.1');
+
+  return app;
+};
+
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve): void => {
     setTimeout(resolve, ms);
@@ -87,6 +102,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
   let redis!: StartedTestContainer;
   let http!: HttpSink;
   let gatewayApp!: INestApplication<HttpServer>;
+  let gatewayReplica!: INestApplication<HttpServer>;
   let routerApp!: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>;
   let prisma!: PrismaService;
   let telegramApi!: TelegramApiSink;
@@ -213,16 +229,9 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     jest.spyOn(console, 'log').mockImplementation(() => undefined);
     jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-    // Настройка повторяет gateway main.ts: версия API, префикс и глобальные
-    // обработчики регистрируются при запуске, а не в AppModule.
-    gatewayApp = await NestFactory.create<INestApplication<HttpServer>>(GatewayAppModule);
-    gatewayApp.enableVersioning({ type: VersioningType.URI });
-    gatewayApp.setGlobalPrefix('api');
-    gatewayApp.useGlobalFilters(new HttpExceptionFilter());
-    gatewayApp.useGlobalInterceptors(new HttpLoggingInterceptor());
-    gatewayApp.useGlobalPipes(new HttpValidationPipe());
-    // Общий сервер остаётся открытым до afterAll, в том числе для параллельных запросов supertest.
-    await gatewayApp.listen(0, '127.0.0.1');
+    gatewayApp = await startGateway();
+    // Вторая реплика за тем же балансировщиком: делит с первой Redis и лимит запросов
+    gatewayReplica = await startGateway();
     leadsQueue = gatewayApp.get<Queue<SendLeadJob>>(getQueueToken(QUEUES.LEADS.QUEUE_NAME));
     await leadsQueue.waitUntilReady();
 
@@ -235,6 +244,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
 
     // beforeAll мог оборваться на середине: каждый ресурс чистим независимо от остальных
     await silently(() => gatewayApp.close());
+    await silently(() => gatewayReplica.close());
     await silently(() => routerApp.close());
     await silently(() => http.close());
     await silently(() => smtp.close());
@@ -324,7 +334,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       },
     );
 
-    it('rate limits requests above the throttle window limit', async (): Promise<void> => {
+    it('rate limits requests above the throttle window limit across gateway replicas', async (): Promise<void> => {
       // Окно очищается от запросов предыдущих тестов и после теста — для следующих
       await sleep(1_100);
 
@@ -332,7 +342,8 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
         await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send({ name: '' }).expect(400);
       }
 
-      await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send({ name: '' }).expect(429);
+      // Лимит общий: запрос сверх него отклоняет и реплика, которая сама его ещё не считала
+      await request(gatewayReplica.getHttpServer()).post('/api/v1/leads').send({ name: '' }).expect(429);
 
       await sleep(1_100);
     }, 15_000);
