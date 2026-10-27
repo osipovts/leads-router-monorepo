@@ -139,6 +139,12 @@ describe('HttpLeadDeliveryAdapter', (): void => {
       expect(retryAfterMs).toBeLessThanOrEqual(30_000);
     });
 
+    it('retries at once when the HTTP-date has already passed', async (): Promise<void> => {
+      const caught = await sendFailing({ 'retry-after': new Date(Date.now() - 30_000).toUTCString() });
+
+      expect(caught).toMatchObject({ retryAfterMs: 0 });
+    });
+
     it('waits for the endpoint that asked for the longest pause', async (): Promise<void> => {
       const caught = await sendFailing({ 'retry-after': '10' }, { 'retry-after': '60' }, {});
 

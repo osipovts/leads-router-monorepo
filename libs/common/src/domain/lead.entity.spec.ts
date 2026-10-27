@@ -59,6 +59,10 @@ describe('LeadEntity', () => {
       expect(() => LeadEntity.from(atLimits)).not.toThrow();
     });
 
+    it('accepts single-character fields', () => {
+      expect(() => LeadEntity.from({ ...VALID, name: 'a', contact: 'c', message: 'm' })).not.toThrow();
+    });
+
     it.each(['😀', '𐐀'])('counts Unicode code points for %s', (character): void => {
       const atLimits = {
         ...VALID,

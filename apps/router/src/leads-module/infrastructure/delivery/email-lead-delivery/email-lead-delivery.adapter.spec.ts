@@ -49,6 +49,8 @@ describe('EmailLeadDeliveryAdapter', (): void => {
   it.each([
     [450, true],
     [454, true],
+    [499, true],
+    [500, false],
     [535, false],
     [550, false],
   ])('classifies SMTP response code %i as isRetryable=%s', (responseCode, isRetryable): void => {
@@ -61,6 +63,12 @@ describe('EmailLeadDeliveryAdapter', (): void => {
     const failure = Object.assign(new Error('auth failed'), { code: 'EAUTH' });
 
     expect(new EmailLeadDeliveryException(failure).isRetryable).toBe(false);
+  });
+
+  it('retries a lost SMTP connection', (): void => {
+    const failure = Object.assign(new Error('connection lost'), { code: 'ECONNECTION' });
+
+    expect(new EmailLeadDeliveryException(failure).isRetryable).toBe(true);
   });
 
   it('keeps unknown errors retryable', (): void => {

@@ -67,6 +67,10 @@ describe('leadBackoffStrategy', (): void => {
     expect(leadBackoffStrategy(1, 'lead', error, undefined)).toBe(2_000);
   });
 
+  it('retries at once when neither the job nor the recipient sets a wait', (): void => {
+    expect(leadBackoffStrategy(1, 'lead', new Error('boom'), { opts: {} })).toBe(0);
+  });
+
   it('waits the configured delay for an unknown failure', (): void => {
     expect(leadBackoffStrategy(1, 'lead', new Error('boom'), jobWithBackoffDelay(5_000))).toBe(5_000);
   });
