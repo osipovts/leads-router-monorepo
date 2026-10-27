@@ -22,7 +22,7 @@ pnpm test:e2e # из корня монорепы
 - **Контроль доставки**:
   - database — реальная запись, проверяется запросом через `PrismaService`;
   - http — `HTTP_LEAD_DELIVERY_ENDPOINTS` указывает на локальный sink-сервер, который записывает всё присланное;
-  - console — шпион за `Logger.prototype` из дерева router;
+  - console — шпион за `Logger.prototype`;
   - telegram — вызовы Bot API перехватываются подменой `globalThis.fetch` (синк), при этом работают реальный клиент и
     транспорт; отдельный тест проверяет пропуск выключенного канала (spy на геттер `enabled` адаптера);
   - email — локальный SMTP-сервер (sink), письма парсятся через `mailparser`.
@@ -35,5 +35,7 @@ pnpm test:e2e # из корня монорепы
 
 - `NODE_OPTIONS=--experimental-vm-modules` — Nest 12 поставляется как ESM, а jest требует этот флаг для `require(esm)` в
   CJS-рантайме тестов.
-- Импорты `@nestjs/core`/`@nestjs/common` из дерева gateway/router гарантируют единственные экземпляры этих пакетов в
-  процессе: две копии Nest сломали бы DI и instanceof-проверки.
+- e2e объявляет `@nestjs/common`, `@nestjs/core`, `@nestjs/swagger` и их peer-зависимости с теми же точными версиями,
+  что у gateway и router: pnpm схлопывает их в один экземпляр. Две копии Nest в процессе сломали бы DI и
+  instanceof-проверки, поэтому тест `shares one Nest instance with gateway and router` проверяет, что gateway и router
+  разрешают те же пакеты, что и e2e. При обновлении Nest версии нужно менять во всех трёх `package.json`.
