@@ -81,4 +81,14 @@ describe('HttpExceptionFilter', () => {
     expect(loggerError).toHaveBeenCalledWith('POST /api/v1/leads: queue is down', expect.any(String));
     expect(loggerWarn).not.toHaveBeenCalled();
   });
+
+  it('logs an unexpected error as error with stack', () => {
+    const { host, status } = createHost();
+
+    filter.catch(new Error('boom'), host);
+
+    expect(status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
+    expect(loggerError).toHaveBeenCalledWith(expect.any(String), expect.any(String));
+    expect(loggerWarn).not.toHaveBeenCalled();
+  });
 });

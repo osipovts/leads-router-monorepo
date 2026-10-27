@@ -72,6 +72,14 @@ describe('BroadcastLeadUseCase', () => {
     expect(queue.sent.filter(({ channel }): boolean => channel === ChannelEnum.EMAIL)).toHaveLength(1);
   });
 
+  it('rejects the lead when a single channel fails to enqueue', async (): Promise<void> => {
+    queue.failChannels.add(ChannelEnum.HTTP);
+
+    await expect(useCase.execute(makeLead())).rejects.toMatchObject({
+      details: { failedChannels: [ChannelEnum.HTTP] },
+    });
+  });
+
   it('does not acknowledge concurrent requests before their enqueue operations finish', async (): Promise<void> => {
     let rejectEnqueue!: (reason: Error) => void;
     const enqueue = new Promise<void>((_resolve, reject): void => {
