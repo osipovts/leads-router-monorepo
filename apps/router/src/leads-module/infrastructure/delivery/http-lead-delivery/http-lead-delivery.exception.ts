@@ -1,4 +1,5 @@
 import { LeadDeliveryException } from '../../../application/exceptions/lead-delivery.exception';
+import { redactUrl } from './redact-url';
 
 export interface HttpDeliveryFailure {
   endpoint: string;
@@ -17,7 +18,16 @@ export class HttpLeadDeliveryException extends LeadDeliveryException {
   ) {
     super();
     this.isRetryable = failures.some((failure): boolean => failure.isRetryable);
-    this.details = { failedEndpoints: failures.map((failure): string => failure.endpoint), totalEndpoints, failures };
+    // details попадают в failedReason задачи и логи: секреты из URL эндпоинта маскируются
+    const redacted = failures.map((failure): HttpDeliveryFailure => ({
+      ...failure,
+      endpoint: redactUrl(failure.endpoint),
+    }));
+    this.details = {
+      failedEndpoints: redacted.map((failure): string => failure.endpoint),
+      totalEndpoints,
+      failures: redacted,
+    };
   }
 
   override get message(): string {

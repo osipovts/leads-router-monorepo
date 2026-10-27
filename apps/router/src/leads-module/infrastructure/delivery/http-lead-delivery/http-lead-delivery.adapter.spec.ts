@@ -94,6 +94,21 @@ describe('HttpLeadDeliveryAdapter', (): void => {
     expect(details).toContain(`"isRetryable":${isRetryable ? 'true' : 'false'}`);
   });
 
+  it('keeps endpoint credentials and query values out of the serialized failure', async (): Promise<void> => {
+    const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
+    post.mockRejectedValue(axiosError(503));
+    const adapter = new HttpLeadDeliveryAdapter(
+      makeConfig(['https://user:s3cret-pass@failing.test/leads?api_key=s3cret-key']),
+      { post } as unknown as HttpClient,
+    );
+
+    const caught: unknown = await adapter.send(lead, makeCheckpoint()).catch((error: unknown): unknown => error);
+
+    const serialized = JSON.stringify(caught);
+    expect(serialized).toContain('failing.test/leads');
+    expect(serialized).not.toContain('s3cret');
+  });
+
   it('marks the delivery retryable while at least one endpoint failed temporarily', async (): Promise<void> => {
     const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
     post.mockRejectedValueOnce(axiosError(400));

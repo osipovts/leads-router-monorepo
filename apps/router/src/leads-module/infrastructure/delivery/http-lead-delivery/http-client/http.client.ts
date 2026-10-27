@@ -2,6 +2,7 @@ import { Inject, Logger } from '@nestjs/common';
 import type { AxiosInstance, Method } from 'axios';
 import axios from 'axios';
 
+import { redactUrl } from '../redact-url';
 import { httpClientConfig, type HttpClientConfigType } from './http-client.config';
 
 export class HttpClient {
@@ -25,20 +26,21 @@ export class HttpClient {
   async post<TResponse>(url: string, data: unknown): Promise<TResponse> {
     const method: Method = 'POST';
     const startedAt = Date.now();
-    this.logger.debug(`-> ${method} ${url}`);
+    const loggedUrl = redactUrl(url);
+    this.logger.debug(`-> ${method} ${loggedUrl}`);
 
     try {
       const response = await this.client.request<TResponse>({ method, url, data });
 
       const duration = Date.now() - startedAt;
 
-      this.logger.debug(`<- ${method} ${url} ${response.status.toString()} (${duration.toString()}ms)`);
+      this.logger.debug(`<- ${method} ${loggedUrl} ${response.status.toString()} (${duration.toString()}ms)`);
 
       return response.data;
     } catch (error) {
       const duration = Date.now() - startedAt;
 
-      this.logError(method, url, duration, error);
+      this.logError(method, loggedUrl, duration, error);
 
       throw error;
     }

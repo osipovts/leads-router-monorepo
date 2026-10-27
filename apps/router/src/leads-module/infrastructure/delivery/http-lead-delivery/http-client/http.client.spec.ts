@@ -70,6 +70,20 @@ describe('HttpClient', (): void => {
       );
     });
 
+    it('keeps URL credentials and query values out of the logs', async (): Promise<void> => {
+      const loggerDebug = jest.spyOn(Logger.prototype, 'debug').mockImplementation((): void => undefined);
+      request.mockRejectedValueOnce(new AxiosError('connect ECONNREFUSED', 'ECONNREFUSED'));
+      request.mockResolvedValueOnce({ status: 200, data: null });
+      const url = 'https://user:s3cret-pass@sink.test/leads?api_key=s3cret-key';
+
+      await expect(client.post(url, {})).rejects.toBeInstanceOf(AxiosError);
+      await client.post(url, {});
+
+      const logged = JSON.stringify([...loggerError.mock.calls, ...loggerDebug.mock.calls]);
+      expect(logged).toContain('sink.test/leads');
+      expect(logged).not.toContain('s3cret');
+    });
+
     it('rethrows a non-axios error and logs its message', async (): Promise<void> => {
       const error = new Error('serializer exploded');
       request.mockRejectedValue(error);
