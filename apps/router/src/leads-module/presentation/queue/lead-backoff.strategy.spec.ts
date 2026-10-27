@@ -36,6 +36,19 @@ describe('leadBackoffStrategy', (): void => {
     expect(leadBackoffStrategy(1, 'lead', error, jobWithBackoffDelay(5_000))).toBe(5_000);
   });
 
+  it('reads a delay given as a plain number of milliseconds', (): void => {
+    expect(leadBackoffStrategy(1, 'lead', new Error('boom'), { opts: { backoff: 5_000 } })).toBe(5_000);
+  });
+
+  it('falls back to the requested wait when the job has no configured delay', (): void => {
+    const error = workerError(
+      new TelegramLeadDeliveryException(new TelegramApiError(429, 'Too Many Requests', { retry_after: 2 })),
+    );
+
+    expect(leadBackoffStrategy(1, 'lead', error, { opts: {} })).toBe(2_000);
+    expect(leadBackoffStrategy(1, 'lead', error, undefined)).toBe(2_000);
+  });
+
   it('waits the configured delay for an unknown failure', (): void => {
     expect(leadBackoffStrategy(1, 'lead', new Error('boom'), jobWithBackoffDelay(5_000))).toBe(5_000);
   });
