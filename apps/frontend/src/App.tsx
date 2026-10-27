@@ -11,6 +11,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   // id лида, которому gateway не смог поставить все каналы в очередь: повтор с ним дедуплицируется
   const [retryLeadId, setRetryLeadId] = useState<string | undefined>(undefined);
+  // Поля заблокированы на время запроса: иначе ответ с retryLeadId привязал бы id прежнего лида к изменённой форме
+  const sending = status === 'sending';
 
   const handleChange = (field: keyof typeof EMPTY_FORM) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));
@@ -47,21 +49,21 @@ export function App() {
       <form onSubmit={handleSubmit}>
         <label>
           Имя
-          <input value={form.name} onChange={handleChange('name')} required maxLength={64} />
+          <input value={form.name} onChange={handleChange('name')} disabled={sending} required maxLength={64} />
         </label>
 
         <label>
           Контакт
-          <input value={form.contact} onChange={handleChange('contact')} required maxLength={128} />
+          <input value={form.contact} onChange={handleChange('contact')} disabled={sending} required maxLength={128} />
         </label>
 
         <label>
           Сообщение
-          <textarea value={form.message} onChange={handleChange('message')} required maxLength={2048} rows={4} />
+          <textarea value={form.message} onChange={handleChange('message')} disabled={sending} required maxLength={2048} rows={4} />
         </label>
 
-        <button type="submit" disabled={status === 'sending'}>
-          {status === 'sending' ? 'Отправка…' : 'Отправить'}
+        <button type="submit" disabled={sending}>
+          {sending ? 'Отправка…' : 'Отправить'}
         </button>
       </form>
     </main>
