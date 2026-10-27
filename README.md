@@ -63,6 +63,7 @@ docker compose up --build
 # Тесты
 
 ```
+pnpm lint
 pnpm test:unit
 pnpm typecheck
 pnpm test:e2e
