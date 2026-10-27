@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 
-import { sendLead, SendLeadError } from './api';
+import { sendLead } from './api';
 
 const EMPTY_FORM = { name: '', contact: '', message: '' };
 
@@ -9,15 +9,15 @@ export function App() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
   const [error, setError] = useState<string | null>(null);
-  // id лида, которому gateway не смог поставить все каналы в очередь: повтор с ним дедуплицируется
-  const [retryLeadId, setRetryLeadId] = useState<string | undefined>(undefined);
-  // Поля заблокированы на время запроса: иначе ответ с retryLeadId привязал бы id прежнего лида к изменённой форме
+  // id назначается до первой отправки: повтор неизменённой формы, даже после потерянного ответа, дедуплицируется
+  const [leadId, setLeadId] = useState(() => crypto.randomUUID());
+  // Поля заблокированы на время запроса: иначе отправленная форма и её id разошлись бы
   const sending = status === 'sending';
 
   const handleChange = (field: keyof typeof EMPTY_FORM) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));
     // Изменённая форма — уже другой лид, его нельзя склеивать с прежним через дедупликацию
-    setRetryLeadId(undefined);
+    setLeadId(crypto.randomUUID());
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -26,15 +26,12 @@ export function App() {
     setError(null);
 
     try {
-      await sendLead(form, retryLeadId);
+      await sendLead(form, leadId);
       setStatus('sent');
       setForm(EMPTY_FORM);
-      setRetryLeadId(undefined);
+      setLeadId(crypto.randomUUID());
     } catch (e: unknown) {
       setStatus('idle');
-      if (e instanceof SendLeadError && e.leadId !== undefined) {
-        setRetryLeadId(e.leadId);
-      }
       setError(e instanceof Error ? e.message : 'Неизвестная ошибка');
     }
   };

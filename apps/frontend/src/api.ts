@@ -6,23 +6,9 @@ export interface Lead {
 
 interface ApiError {
   message: string;
-  details?: { leadId?: unknown };
 }
 
-/**
- * Ошибка отправки лида. leadId приходит, когда gateway уже присвоил лиду id:
- * повтор с тем же id дедуплицируется в каналах, которые лид уже приняли.
- */
-export class SendLeadError extends Error {
-  constructor(
-    message: string,
-    readonly leadId: string | undefined,
-  ) {
-    super(message);
-  }
-}
-
-export async function sendLead(lead: Lead, id?: string): Promise<void> {
+export async function sendLead(lead: Lead, id: string): Promise<void> {
   const response = await fetch('/api/v1/leads', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -33,11 +19,10 @@ export async function sendLead(lead: Lead, id?: string): Promise<void> {
 
   if (!response.ok) {
     if (!isApiError(body)) {
-      throw new SendLeadError(`Request failed with status ${String(response.status)}`, undefined);
+      throw new Error(`Request failed with status ${String(response.status)}`);
     }
 
-    const leadId = body.error.details?.leadId;
-    throw new SendLeadError(body.error.message, typeof leadId === 'string' ? leadId : undefined);
+    throw new Error(body.error.message);
   }
 }
 
