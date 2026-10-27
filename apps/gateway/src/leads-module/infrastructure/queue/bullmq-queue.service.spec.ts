@@ -75,6 +75,17 @@ describe('BullmqQueueService', () => {
     await module.close();
   });
 
+  it.each([
+    ['ready', true],
+    ['initializing', false],
+    ['closing', false],
+    ['closed', false],
+  ] as const)('reports a %s Redis connection as ready=%s', (status, ready): void => {
+    connectionStatus = status;
+
+    expect(service.isReady()).toBe(ready);
+  });
+
   it('adds a job with retries, retention and atomic deduplication per channel', async (): Promise<void> => {
     const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
 

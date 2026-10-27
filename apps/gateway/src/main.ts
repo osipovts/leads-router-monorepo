@@ -22,7 +22,8 @@ async function bootstrap(): Promise<void> {
 
   // API version
   app.enableVersioning({ type: VersioningType.URI });
-  app.setGlobalPrefix('api');
+  // /health вне /api: nginx фронтенда проксирует наружу только /api/, проверка остаётся внутренней
+  app.setGlobalPrefix('api', { exclude: ['health'] });
 
   // Global stuff
   app.useGlobalFilters(new HttpExceptionFilter());

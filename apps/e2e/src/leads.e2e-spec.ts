@@ -1,6 +1,8 @@
 import { execFileSync } from 'node:child_process';
+import { readFile, rm } from 'node:fs/promises';
 import type { Server as HttpServer } from 'node:http';
 import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
@@ -62,7 +64,7 @@ const silently = async (action: () => unknown): Promise<void> => {
 const startGateway = async (): Promise<INestApplication<HttpServer>> => {
   const app = await NestFactory.create<INestApplication<HttpServer>>(GatewayAppModule);
   app.enableVersioning({ type: VersioningType.URI });
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', { exclude: ['health'] });
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new HttpLoggingInterceptor());
   app.useGlobalPipes(new HttpValidationPipe());
@@ -71,6 +73,8 @@ const startGateway = async (): Promise<INestApplication<HttpServer>> => {
 
   return app;
 };
+
+const HEARTBEAT_FILE = join(tmpdir(), `router-heartbeat-${process.pid.toString()}`);
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve): void => {
@@ -201,6 +205,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     process.env.HTTP_CLIENT_TIMEOUT = '2000';
     // Три попытки с паузами 50 и 100 мс: тесты исчерпания попыток укладываются в таймауты waitFor
     process.env.LEADS_QUEUE_ATTEMPTS = '3';
+    process.env.LEADS_WORKER_HEARTBEAT_FILE = HEARTBEAT_FILE;
     process.env.LEADS_QUEUE_BACKOFF = '50';
     process.env.EMAIL_LEAD_DELIVERY_ENABLED = 'true';
     process.env.EMAIL_LEAD_DELIVERY_TO = 'inbox@test.local';
@@ -245,6 +250,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     // beforeAll мог оборваться на середине: каждый ресурс чистим независимо от остальных
     await silently(() => gatewayApp.close());
     await silently(() => gatewayReplica.close());
+    await silently(() => rm(HEARTBEAT_FILE, { force: true }));
     await silently(() => routerApp.close());
     await silently(() => http.close());
     await silently(() => smtp.close());
@@ -265,6 +271,12 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
   });
 
   describe('gateway', () => {
+    it('reports health outside the public /api prefix', async (): Promise<void> => {
+      const response = await request(gatewayApp.getHttpServer()).get('/health').expect(200);
+
+      expect(response.body).toEqual({ success: true, data: { status: 'ok' } });
+    });
+
     it('logs the final HTTP status after validation and error mapping', async (): Promise<void> => {
       const debug = jest.spyOn(Logger.prototype, 'debug').mockImplementation((): void => undefined);
       try {
@@ -798,6 +810,19 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
   });
 
   // Worker concurrency test
+  describe('worker health', (): void => {
+    it('keeps the heartbeat fresh while the worker is connected to Redis', async (): Promise<void> => {
+      const beatAt = await waitFor(
+        async (): Promise<number | undefined> =>
+          Number(await readFile(HEARTBEAT_FILE, 'utf8').catch((): string => '')) || undefined,
+        10_000,
+        'router heartbeat',
+      );
+
+      expect(Date.now() - beatAt).toBeLessThan(15_000);
+    });
+  });
+
   describe('worker concurrency', (): void => {
     it('processes two slow deliveries in parallel when concurrency is raised', async (): Promise<void> => {
       await waitForQueueIdle();

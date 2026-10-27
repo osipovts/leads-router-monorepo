@@ -26,9 +26,13 @@ export class BullmqQueueService implements QueuePort {
     });
   }
 
+  isReady(): boolean {
+    return this.leadsQueue.getBackend().connection.status === 'ready';
+  }
+
   async sendLead(channel: ChannelEnum, lead: LeadEntity): Promise<void> {
     // До первого подключения BullMQ может ждать Redis без ограничения времени.
-    if (this.leadsQueue.getBackend().connection.status !== 'ready') {
+    if (!this.isReady()) {
       // Штатная деградация, а не сбой: ошибки соединения уже логируются слушателем 'error'
       // очереди, а итог запроса — exception-фильтром. Без этого ограничения broadcast
       // в 5 каналов давал бы 6 error-логов на каждый отклонённый запрос

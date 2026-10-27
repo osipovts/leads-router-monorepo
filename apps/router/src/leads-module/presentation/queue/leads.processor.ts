@@ -43,6 +43,11 @@ export class LeadsProcessor extends WorkerHost implements OnApplicationBootstrap
     this.initialized = true;
   }
 
+  /** Воркер принимает задачи: запущен и подключён к Redis */
+  isHealthy(): boolean {
+    return this.initialized && this.worker.isRunning() && this.worker.getBackend().connection.status === 'ready';
+  }
+
   async beforeApplicationShutdown(): Promise<void> {
     // Prisma закрывается в следующей фазе, после завершения активных задач.
     if (this.initialized) {

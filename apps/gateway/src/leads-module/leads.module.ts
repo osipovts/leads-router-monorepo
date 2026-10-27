@@ -8,6 +8,7 @@ import { BroadcastLeadUseCase } from './application/use-cases/broadcast-lead.use
 import { BullmqQueueService } from './infrastructure/queue/bullmq-queue.service';
 import { leadsDeduplicationConfig, leadsQueueConfig } from './leads.config';
 import { BroadcastLeadsController } from './presentation/http/broadcast-leads.controller';
+import { HealthController } from './presentation/http/health.controller';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { BroadcastLeadsController } from './presentation/http/broadcast-leads.co
     ConfigModule.forFeature(leadsDeduplicationConfig),
     BullModule.registerQueue({ name: QUEUES.LEADS.QUEUE_NAME }),
   ],
-  controllers: [BroadcastLeadsController],
+  controllers: [BroadcastLeadsController, HealthController],
   providers: [BroadcastLeadUseCase, { provide: QUEUE_PORT, useClass: BullmqQueueService }],
 })
 export class LeadsModule {}

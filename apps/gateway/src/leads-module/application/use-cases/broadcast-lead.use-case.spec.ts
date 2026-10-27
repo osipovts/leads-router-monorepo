@@ -9,6 +9,10 @@ class QueueFake implements QueuePort {
   readonly sent: Array<{ channel: ChannelEnum; lead: LeadEntity }> = [];
   readonly failChannels = new Set<ChannelEnum>();
 
+  isReady(): boolean {
+    return true;
+  }
+
   sendLead(channel: ChannelEnum, lead: LeadEntity): Promise<void> {
     if (this.failChannels.has(channel)) {
       return Promise.reject(new Error(`enqueue failed for '${channel}'`));

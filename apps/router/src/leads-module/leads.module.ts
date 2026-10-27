@@ -10,6 +10,7 @@ import {
 } from './infrastructure/delivery/delivery.providers';
 import { leadsWorkerConfig } from './leads.config';
 import { LeadsProcessor } from './presentation/queue/leads.processor';
+import { WorkerHeartbeat } from './presentation/queue/worker-heartbeat';
 
 @Module({
   imports: [
@@ -17,6 +18,6 @@ import { LeadsProcessor } from './presentation/queue/leads.processor';
     BullModule.registerQueue({ name: QUEUES.LEADS.QUEUE_NAME }),
     ...DELIVERY_ADAPTER_MODULES,
   ],
-  providers: [LEAD_DELIVERY_ADAPTERS_PROVIDER, SendLeadUseCase, LeadsProcessor],
+  providers: [LEAD_DELIVERY_ADAPTERS_PROVIDER, SendLeadUseCase, LeadsProcessor, WorkerHeartbeat],
 })
 export class LeadsModule {}

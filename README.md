@@ -52,6 +52,10 @@ docker compose up --build
    в `apps/gateway/.env`; путь лежит вне `/api`, поэтому nginx фронтенда не проксирует его наружу
 3. Bull Dashboard на [http://localhost:4000](http://localhost:4000)
 
+Healthcheck контейнеров: gateway отвечает на `GET /health` (вне `/api`, наружу через nginx не проксируется) и
+возвращает 503, пока очередь не подключена к Redis; router без HTTP-сервера обновляет файл пульса
+`/tmp/router-heartbeat`, пока воркер работает и подключён к Redis.
+
 `docker-compose.yml` содержит лишь самодостаточную демо-конфигурацию: для полноценного production-использования он не
 рекомендуется.
 
