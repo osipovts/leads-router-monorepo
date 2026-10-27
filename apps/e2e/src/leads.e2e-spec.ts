@@ -183,6 +183,8 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     process.env.HTTP_LEAD_DELIVERY_ENABLED = 'true';
     process.env.HTTP_LEAD_DELIVERY_ENDPOINTS = `http://127.0.0.1:${http.port.toString()}/leads`;
     process.env.HTTP_CLIENT_TIMEOUT = '2000';
+    // Три попытки с паузами 50 и 100 мс: тесты исчерпания попыток укладываются в таймауты waitFor
+    process.env.LEADS_QUEUE_ATTEMPTS = '3';
     process.env.LEADS_QUEUE_BACKOFF = '50';
     process.env.EMAIL_LEAD_DELIVERY_ENABLED = 'true';
     process.env.EMAIL_LEAD_DELIVERY_TO = 'inbox@test.local';
