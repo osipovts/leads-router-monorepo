@@ -1,6 +1,8 @@
 const WAIT_INTERVAL_MS = 100;
 
-function isMet<T>(value: T): boolean {
+type Met<T> = Exclude<T, null | undefined | false>;
+
+function isMet<T>(value: T): value is Met<T> {
   return value !== null && value !== undefined && value !== false;
 }
 
@@ -8,7 +10,7 @@ function isMet<T>(value: T): boolean {
  * Периодически вызывает probe, пока результат отличается от null, undefined и false.
  * Возвращает результат или выбрасывает ошибку по истечении timeoutMs.
  */
-export async function waitFor<T>(probe: () => Promise<T> | T, timeoutMs = 10_000, label = 'condition'): Promise<T> {
+export async function waitFor<T>(probe: () => Promise<T> | T, timeoutMs = 10_000, label = 'condition'): Promise<Met<T>> {
   const deadline = Date.now() + timeoutMs;
 
   for (;;) {

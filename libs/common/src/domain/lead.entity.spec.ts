@@ -74,7 +74,7 @@ describe('LeadEntity', () => {
     });
 
     it('accepts an externally generated UUID id', () => {
-      const lead = LeadEntity.from({ id: generateLeadId(), ...VALID });
+      const lead = LeadEntity.from({ ...VALID, id: generateLeadId() });
 
       expect(lead.id).toMatch(LeadEntityValidation.id.pattern);
       expect(lead.name).toBe(VALID.name);

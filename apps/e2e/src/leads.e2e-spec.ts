@@ -3,7 +3,14 @@ import type { Server as HttpServer } from 'node:http';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
 
-import { ChannelEnum, generateLeadId, LeadEntity, QUEUES, type SendLeadJob } from '@leads-router/common';
+import {
+  ChannelEnum,
+  generateLeadId,
+  LeadEntity,
+  LeadEntityValidation,
+  QUEUES,
+  type SendLeadJob,
+} from '@leads-router/common';
 import { getQueueToken } from '@nestjs/bullmq';
 import type { Job, Queue } from 'bullmq';
 import request from 'supertest';
@@ -104,14 +111,10 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
   };
 
   const settledHttpJob = async (id: string): Promise<Job<SendLeadJob>> => {
-    const job = await waitFor(async (): Promise<Job<SendLeadJob> | undefined> => {
+    return waitFor(async (): Promise<Job<SendLeadJob> | undefined> => {
       const jobs = await leadsQueue.getJobs(['completed', 'failed']);
       return jobs.find((entry): boolean => entry.data.lead.id === id && entry.data.channel === ChannelEnum.HTTP);
-    });
-    if (job === undefined) {
-      throw new Error('HTTP delivery job did not settle');
-    }
-    return job;
+    }, 10_000, 'HTTP delivery job settled');
   };
 
   const waitForQueueIdle = async (): Promise<void> => {
@@ -557,12 +560,10 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
         'http sink request',
       );
 
-      expect(delivery?.url).toBe('/leads');
-      expect(delivery?.body).toMatchObject(lead);
+      expect(delivery.url).toBe('/leads');
       // Каскад получает id лида для дедупликации на своей стороне.
-      expect((delivery?.body as { id?: string }).id).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-      );
+      const anyLeadId: unknown = expect.stringMatching(LeadEntityValidation.id.pattern);
+      expect(delivery.body).toMatchObject({ ...lead, id: anyLeadId });
     });
   });
 
@@ -577,9 +578,9 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
         'telegram api call',
       );
 
-      expect(delivery?.url).toBe('https://api.telegram.org/bot123456:test-token/sendMessage');
-      expect(delivery?.params.chat_id).toBe('123456789');
-      expect(delivery?.params.text).toBe(`From: ${lead.name} <${lead.contact}>\nMessage: ${lead.message}`);
+      expect(delivery.url).toBe('https://api.telegram.org/bot123456:test-token/sendMessage');
+      expect(delivery.params.chat_id).toBe('123456789');
+      expect(delivery.params.text).toBe(`From: ${lead.name} <${lead.contact}>\nMessage: ${lead.message}`);
     });
   });
 
@@ -594,14 +595,14 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
         'smtp message',
       );
 
-      expect(delivery?.to).toBe('inbox@test.local');
-      expect(delivery?.from).toBe('leads@test.local');
-      expect(delivery?.subject).toBe(`New lead from ${lead.name}`);
+      expect(delivery.to).toBe('inbox@test.local');
+      expect(delivery.from).toBe('leads@test.local');
+      expect(delivery.subject).toBe(`New lead from ${lead.name}`);
       // Тело письма при передаче по SMTP может получить \r\n вместо \n,
       // поэтому сравнивается с нормализацией переводов строк
       const expectedText = `From: ${lead.name} <${lead.contact}>\nMessage: ${lead.message}`;
 
-      expect(delivery?.text.replace(/\r\n/g, '\n').trim()).toBe(expectedText);
+      expect(delivery.text.replace(/\r\n/g, '\n').trim()).toBe(expectedText);
     });
   });
 
