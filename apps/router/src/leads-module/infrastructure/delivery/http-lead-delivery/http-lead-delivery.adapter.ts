@@ -8,6 +8,7 @@ import { HttpClient } from './http-client/http.client';
 import { httpLeadDeliveryConfig, type HttpLeadDeliveryConfigType } from './http-lead-delivery.config';
 import { type HttpDeliveryFailure, HttpLeadDeliveryException } from './http-lead-delivery.exception';
 import { isRetryableHttpError } from './is-retryable-http-error';
+import { retryAfterHeaderMs } from './retry-after-header';
 
 @Injectable()
 export class HttpLeadDeliveryAdapter implements LeadDeliveryPort {
@@ -41,6 +42,7 @@ export class HttpLeadDeliveryAdapter implements LeadDeliveryPort {
           status: axios.isAxiosError(error) ? error.response?.status : undefined,
           code: axios.isAxiosError(error) ? error.code : undefined,
           isRetryable: isRetryableHttpError(error),
+          retryAfterMs: retryAfterHeaderMs(error),
         });
       }
     });

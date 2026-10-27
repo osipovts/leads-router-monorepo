@@ -6,11 +6,13 @@ export interface HttpDeliveryFailure {
   status?: number;
   code?: string;
   isRetryable: boolean;
+  retryAfterMs?: number;
 }
 
 export class HttpLeadDeliveryException extends LeadDeliveryException {
   public readonly details: Record<string, unknown>;
   public readonly isRetryable: boolean;
+  public override readonly retryAfterMs: number | undefined;
 
   constructor(
     private readonly failures: readonly HttpDeliveryFailure[],
@@ -18,6 +20,11 @@ export class HttpLeadDeliveryException extends LeadDeliveryException {
   ) {
     super();
     this.isRetryable = failures.some((failure): boolean => failure.isRetryable);
+    // Повтор идёт ко всем неуспешным эндпоинтам сразу: ждать нужно самого долгого
+    const waits = failures.flatMap((failure): number[] =>
+      failure.retryAfterMs === undefined ? [] : [failure.retryAfterMs],
+    );
+    this.retryAfterMs = waits.length > 0 ? Math.max(...waits) : undefined;
     // details попадают в failedReason задачи и логи: секреты из URL эндпоинта маскируются
     const redacted = failures.map((failure): HttpDeliveryFailure => ({
       ...failure,

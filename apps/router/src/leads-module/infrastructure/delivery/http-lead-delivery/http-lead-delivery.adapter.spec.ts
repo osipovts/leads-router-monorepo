@@ -26,10 +26,14 @@ const makeCheckpoint = (delivered: readonly string[] = []): CheckpointFake => ({
 
 // Ответ сети имитируется настоящим AxiosError: адаптер читает status и code,
 // а классификацию выполняет isRetryableHttpError
-const axiosError = (status: number | undefined, code = 'ETIMEDOUT'): AxiosError => {
+const axiosError = (
+  status: number | undefined,
+  code = 'ETIMEDOUT',
+  headers: Record<string, string> = {},
+): AxiosError => {
   const config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig;
   const response: AxiosResponse | undefined =
-    status === undefined ? undefined : { status, statusText: '', data: null, headers: {}, config };
+    status === undefined ? undefined : { status, statusText: '', data: null, headers, config };
 
   return new AxiosError('request failed', code, config, undefined, response);
 };
@@ -108,6 +112,45 @@ describe('HttpLeadDeliveryAdapter', (): void => {
     const serialized = JSON.stringify(caught);
     expect(serialized).toContain('https://failing.test [');
     expect(serialized).not.toContain('s3cret');
+  });
+
+  describe('Retry-After', (): void => {
+    const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
+    const sendFailing = async (...headers: Array<Record<string, string>>): Promise<unknown> => {
+      const endpoints = headers.map((_, index): string => `http://failing-${index.toString()}.test/leads`);
+      headers.forEach((entry): void => {
+        post.mockRejectedValueOnce(axiosError(429, AxiosError.ERR_BAD_REQUEST, entry));
+      });
+      const adapter = new HttpLeadDeliveryAdapter(makeConfig(endpoints), { post } as unknown as HttpClient);
+
+      return adapter.send(lead, makeCheckpoint()).catch((error: unknown): unknown => error);
+    };
+
+    it('asks the queue to wait the seconds the endpoint requested', async (): Promise<void> => {
+      expect(await sendFailing({ 'retry-after': '120' })).toMatchObject({ retryAfterMs: 120_000 });
+    });
+
+    it('converts an HTTP-date into the wait until that moment', async (): Promise<void> => {
+      const caught = await sendFailing({ 'retry-after': new Date(Date.now() + 30_000).toUTCString() });
+
+      // HTTP-date хранит секунды: дробная часть текущей секунды теряется
+      const retryAfterMs = caught instanceof HttpLeadDeliveryException ? caught.retryAfterMs : undefined;
+      expect(retryAfterMs).toBeGreaterThan(28_000);
+      expect(retryAfterMs).toBeLessThanOrEqual(30_000);
+    });
+
+    it('waits for the endpoint that asked for the longest pause', async (): Promise<void> => {
+      const caught = await sendFailing({ 'retry-after': '10' }, { 'retry-after': '60' }, {});
+
+      expect(caught).toMatchObject({ retryAfterMs: 60_000 });
+    });
+
+    it.each([[{}], [{ 'retry-after': 'soon' }], [{ 'retry-after': '' }]])(
+      'leaves the wait to the queue without a usable header %j',
+      async (headers): Promise<void> => {
+        expect(await sendFailing(headers)).toMatchObject({ retryAfterMs: undefined });
+      },
+    );
   });
 
   it('marks the delivery retryable while at least one endpoint failed temporarily', async (): Promise<void> => {
