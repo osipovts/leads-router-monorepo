@@ -39,3 +39,7 @@ temp/
 
 # Prisma
 **/prisma/generated/
+
+# ub-mode metrics (crapper, dryer, mutator)
+.metrics/
+target/
