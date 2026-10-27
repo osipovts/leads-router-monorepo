@@ -95,6 +95,7 @@ export function ApiEnqueueFailedErrorResponse(): MethodDecorator {
                   error: 'EnqueueFailedException',
                   message: 'Lead enqueue failed for channel(s): console, database, telegram, http, email',
                   details: {
+                    leadId: '0f14d0ab-9605-4a62-a9e4-5ed26688389b',
                     failedChannels: ['console', 'database', 'telegram', 'http', 'email'],
                   },
                 },

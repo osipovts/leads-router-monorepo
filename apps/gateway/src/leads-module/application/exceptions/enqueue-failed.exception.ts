@@ -5,9 +5,12 @@ export class EnqueueFailedException extends InfrastructureException {
   public readonly module = ModuleEnum.LEADS;
   public readonly details: Record<string, unknown>;
 
-  constructor(private readonly failedChannels: readonly ChannelEnum[]) {
+  constructor(
+    leadId: string,
+    private readonly failedChannels: readonly ChannelEnum[],
+  ) {
     super();
-    this.details = { failedChannels };
+    this.details = { leadId, failedChannels };
   }
 
   override get message(): string {

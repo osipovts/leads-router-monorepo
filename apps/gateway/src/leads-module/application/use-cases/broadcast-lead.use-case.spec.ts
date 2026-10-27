@@ -60,13 +60,15 @@ describe('BroadcastLeadUseCase', () => {
     }
   });
 
-  it('reports failed channels and allows retrying the same lead', async (): Promise<void> => {
+  it('reports the lead id and failed channels so the client can retry the same lead', async (): Promise<void> => {
     queue.failChannels.add(ChannelEnum.TELEGRAM);
     queue.failChannels.add(ChannelEnum.EMAIL);
     const lead = makeLead();
 
+    // Без id в ответе клиент повторил бы запрос с новым id, и дедупликация не сработала бы
+    // для каналов, уже принявших лид
     await expect(useCase.execute(lead)).rejects.toMatchObject({
-      details: { failedChannels: [ChannelEnum.TELEGRAM, ChannelEnum.EMAIL] },
+      details: { leadId: lead.id, failedChannels: [ChannelEnum.TELEGRAM, ChannelEnum.EMAIL] },
     });
 
     queue.failChannels.clear();

@@ -26,7 +26,7 @@ export class BroadcastLeadUseCase {
     const failedChannels = allChannels.filter((_, index) => results[index].status === 'rejected');
 
     if (failedChannels.length > 0) {
-      throw new EnqueueFailedException(failedChannels);
+      throw new EnqueueFailedException(lead.id, failedChannels);
     }
   }
 }

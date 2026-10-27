@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 
-import { sendLead } from './api';
+import { sendLead, SendLeadError } from './api';
 
 const EMPTY_FORM = { name: '', contact: '', message: '' };
 
@@ -9,9 +9,13 @@ export function App() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
   const [error, setError] = useState<string | null>(null);
+  // id лида, которому gateway не смог поставить все каналы в очередь: повтор с ним дедуплицируется
+  const [retryLeadId, setRetryLeadId] = useState<string | undefined>(undefined);
 
   const handleChange = (field: keyof typeof EMPTY_FORM) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));
+    // Изменённая форма — уже другой лид, его нельзя склеивать с прежним через дедупликацию
+    setRetryLeadId(undefined);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -20,11 +24,15 @@ export function App() {
     setError(null);
 
     try {
-      await sendLead(form);
+      await sendLead(form, retryLeadId);
       setStatus('sent');
       setForm(EMPTY_FORM);
+      setRetryLeadId(undefined);
     } catch (e: unknown) {
       setStatus('idle');
+      if (e instanceof SendLeadError && e.leadId !== undefined) {
+        setRetryLeadId(e.leadId);
+      }
       setError(e instanceof Error ? e.message : 'Неизвестная ошибка');
     }
   };
