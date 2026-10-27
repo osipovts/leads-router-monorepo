@@ -451,10 +451,10 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
         respond: (): { status: number } => ({ status: ++calls === 1 ? 503 : 200 }),
       });
       const config = routerApp.get<HttpLeadDeliveryConfigType>(httpLeadDeliveryConfig.KEY);
-      const endpoints = config.ENDPOINTS;
+      const endpoints = config.endpoints;
       const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
       const lead = new LeadEntity(generateLeadId(), 'HTTP retry', 'http-retry@test.local', 'hello');
-      config.ENDPOINTS = [...endpoints, `http://127.0.0.1:${failing.port.toString()}/leads`];
+      config.endpoints = [...endpoints, `http://127.0.0.1:${failing.port.toString()}/leads`];
       try {
         await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
         const job = await settledHttpJob(lead.id);
@@ -477,7 +477,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
           }),
         );
       } finally {
-        config.ENDPOINTS = endpoints;
+        config.endpoints = endpoints;
         errors.mockRestore();
         await failing.close();
       }
@@ -487,10 +487,10 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       await waitForQueueIdle();
       const failing = await startHttpSink({ respond: (): { status: number } => ({ status: 400 }) });
       const config = routerApp.get<HttpLeadDeliveryConfigType>(httpLeadDeliveryConfig.KEY);
-      const endpoints = config.ENDPOINTS;
+      const endpoints = config.endpoints;
       const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
       const lead = new LeadEntity(generateLeadId(), 'HTTP rejected', 'http-rejected@test.local', 'hello');
-      config.ENDPOINTS = [`http://127.0.0.1:${failing.port.toString()}/leads`];
+      config.endpoints = [`http://127.0.0.1:${failing.port.toString()}/leads`];
       try {
         await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
         const job = await settledHttpJob(lead.id);
@@ -500,7 +500,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
         expect(failing.requests).toHaveLength(1);
         expect(job.failedReason).toContain('"status":400');
       } finally {
-        config.ENDPOINTS = endpoints;
+        config.endpoints = endpoints;
         errors.mockRestore();
         await failing.close();
       }
@@ -509,11 +509,11 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     it('retries a network error until attempts are exhausted and keeps the code in the reason', async (): Promise<void> => {
       await waitForQueueIdle();
       const config = routerApp.get<HttpLeadDeliveryConfigType>(httpLeadDeliveryConfig.KEY);
-      const endpoints = config.ENDPOINTS;
+      const endpoints = config.endpoints;
       const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
       const lead = new LeadEntity(generateLeadId(), 'HTTP network', 'http-network@test.local', 'hello');
       // Порт 9 (discard) закрыт: соединение отклоняется мгновенно
-      config.ENDPOINTS = ['http://127.0.0.1:9/leads'];
+      config.endpoints = ['http://127.0.0.1:9/leads'];
       try {
         await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
         const job = await settledHttpJob(lead.id);
@@ -522,7 +522,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
         expect(job.attemptsMade).toBe(3);
         expect(job.failedReason).toContain('"code":"ECONNREFUSED"');
       } finally {
-        config.ENDPOINTS = endpoints;
+        config.endpoints = endpoints;
         errors.mockRestore();
       }
     });
@@ -533,10 +533,10 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
         respond: (): { status: number; body: string } => ({ status: 200, body: 'x'.repeat(70_000) }),
       });
       const config = routerApp.get<HttpLeadDeliveryConfigType>(httpLeadDeliveryConfig.KEY);
-      const endpoints = config.ENDPOINTS;
+      const endpoints = config.endpoints;
       const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
       const lead = new LeadEntity(generateLeadId(), 'HTTP size', 'http-size@test.local', 'hello');
-      config.ENDPOINTS = [`http://127.0.0.1:${oversized.port.toString()}/leads`];
+      config.endpoints = [`http://127.0.0.1:${oversized.port.toString()}/leads`];
       try {
         await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
         const job = await settledHttpJob(lead.id);
@@ -545,7 +545,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
         // axios прерывает загрузку без ответа: доступен только код ошибки
         expect(job.failedReason).toContain('"code":"ERR_BAD_RESPONSE"');
       } finally {
-        config.ENDPOINTS = endpoints;
+        config.endpoints = endpoints;
         errors.mockRestore();
         await oversized.close();
       }
@@ -613,14 +613,14 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       const sender = new BullmqQueueService(leadsQueue, config, { ttlMs: 1_000 });
       const lead = new LeadEntity(generateLeadId(), 'TTL', 'ttl@test.local', 'hello');
 
-      await sender.sendLead(ChannelEnum.CONSOLE, lead, config.attempts, config.backoff);
-      await sender.sendLead(ChannelEnum.CONSOLE, lead, config.attempts, config.backoff);
+      await sender.sendLead(ChannelEnum.CONSOLE, lead);
+      await sender.sendLead(ChannelEnum.CONSOLE, lead);
       expect(await queuedChannels(lead.id)).toEqual([ChannelEnum.CONSOLE]);
 
       await waitFor(
         async (): Promise<boolean> => (await leadsQueue.getDeduplicationJobId(`${lead.id}-console`)) === null,
       );
-      await sender.sendLead(ChannelEnum.CONSOLE, lead, config.attempts, config.backoff);
+      await sender.sendLead(ChannelEnum.CONSOLE, lead);
       expect(await queuedChannels(lead.id)).toEqual([ChannelEnum.CONSOLE, ChannelEnum.CONSOLE]);
     });
 
@@ -731,10 +731,10 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       await waitForQueueIdle();
       const slow = await startHttpSink({ delayMs: 700 });
       const config = routerApp.get<HttpLeadDeliveryConfigType>(httpLeadDeliveryConfig.KEY);
-      const endpoints = config.ENDPOINTS;
+      const endpoints = config.endpoints;
       const processor = routerApp.get(LeadsProcessor);
       processor.worker.concurrency = 2;
-      config.ENDPOINTS = [`http://127.0.0.1:${slow.port.toString()}/leads`];
+      config.endpoints = [`http://127.0.0.1:${slow.port.toString()}/leads`];
       try {
         const first = new LeadEntity(generateLeadId(), 'Concurrency A', 'concurrency-a@test.local', 'hello');
         const second = new LeadEntity(generateLeadId(), 'Concurrency B', 'concurrency-b@test.local', 'hello');
@@ -751,7 +751,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
         expect(slow.maxConcurrent).toBe(2);
       } finally {
         processor.worker.concurrency = 1;
-        config.ENDPOINTS = endpoints;
+        config.endpoints = endpoints;
         await slow.close();
       }
     });
