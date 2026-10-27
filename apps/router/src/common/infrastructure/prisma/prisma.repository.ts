@@ -1,3 +1,4 @@
+import { causeChain } from '../cause-chain';
 import type { PrismaClient } from './generated/client';
 import { Prisma } from './generated/client';
 import { DATABASE_UNAVAILABLE_ERROR_CODES, DatabaseUnavailableException } from './prisma.exceptions';
@@ -33,17 +34,10 @@ export abstract class PrismaRepository {
       return true;
     }
 
-    // visited защищает от циклических цепочек cause: без него обход завис бы навсегда
-    const visited = new Set<object>();
-    let current: unknown = error;
-
-    while (typeof current === 'object' && current !== null && !visited.has(current)) {
-      visited.add(current);
-      if ('code' in current && DATABASE_UNAVAILABLE_ERROR_CODES.has(String(current.code))) {
+    for (const cause of causeChain(error)) {
+      if ('code' in cause && DATABASE_UNAVAILABLE_ERROR_CODES.has(String(cause.code))) {
         return true;
       }
-
-      current = 'cause' in current ? current.cause : undefined;
     }
 
     return false;

@@ -1,3 +1,4 @@
+import { causeChain } from '../../../../common/infrastructure/cause-chain';
 import { Prisma } from '../../../../common/infrastructure/prisma/generated/client';
 
 const PERMANENT_DATABASE_ERROR_CODES = new Set([
@@ -17,20 +18,13 @@ const PERMANENT_DATABASE_ERROR_CODES = new Set([
  * постоянные коды Prisma — ошибки схемы и ограничений, повтор их не исправит.
  */
 export function isRetryableDatabaseError(error: unknown): boolean {
-  const visited = new Set<object>();
-  let current: unknown = error;
-
-  while (typeof current === 'object' && current !== null && !visited.has(current)) {
-    visited.add(current);
-
-    if (current instanceof Prisma.PrismaClientKnownRequestError) {
-      return !PERMANENT_DATABASE_ERROR_CODES.has(current.code);
+  for (const cause of causeChain(error)) {
+    if (cause instanceof Prisma.PrismaClientKnownRequestError) {
+      return !PERMANENT_DATABASE_ERROR_CODES.has(cause.code);
     }
-    if (current instanceof Prisma.PrismaClientInitializationError && current.errorCode !== undefined) {
-      return !PERMANENT_DATABASE_ERROR_CODES.has(current.errorCode);
+    if (cause instanceof Prisma.PrismaClientInitializationError && cause.errorCode !== undefined) {
+      return !PERMANENT_DATABASE_ERROR_CODES.has(cause.errorCode);
     }
-
-    current = 'cause' in current ? current.cause : undefined;
   }
 
   return true;

@@ -1,21 +1,16 @@
 import { isTransientError, TelegramApiError } from 'node-telegram-bot-api';
 
+import { causeChain } from '../../../../common/infrastructure/cause-chain';
+
 /**
  * Telegram-доставка повторяема при преходящих ошибках API (перегрузка, сбои сети);
  * постоянные ответы повтора не изменят.
  */
 export function isRetryableTelegramError(error: unknown): boolean {
-  const visited = new Set<object>();
-  let current: unknown = error;
-
-  while (typeof current === 'object' && current !== null && !visited.has(current)) {
-    visited.add(current);
-
-    if (current instanceof TelegramApiError) {
-      return isTransientError(current);
+  for (const cause of causeChain(error)) {
+    if (cause instanceof TelegramApiError) {
+      return isTransientError(cause);
     }
-
-    current = 'cause' in current ? current.cause : undefined;
   }
 
   return true;
