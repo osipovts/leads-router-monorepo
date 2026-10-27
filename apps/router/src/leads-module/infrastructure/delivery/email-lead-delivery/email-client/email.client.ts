@@ -13,6 +13,7 @@ export class EmailClient {
       host: config.host,
       port: config.port,
       secure: config.secure,
+      requireTLS: config.requireTLS,
       auth: { user: config.user, pass: config.password },
       connectionTimeout: config.connectionTimeout,
       greetingTimeout: config.greetingTimeout,

@@ -12,6 +12,7 @@ describe('email lead delivery config', () => {
     'EMAIL_CLIENT_HOST',
     'EMAIL_CLIENT_PORT',
     'EMAIL_CLIENT_SECURE',
+    'EMAIL_CLIENT_REQUIRE_TLS',
     'EMAIL_CLIENT_USER',
     'EMAIL_CLIENT_PASSWORD',
     'EMAIL_CLIENT_FROM',
@@ -83,6 +84,7 @@ describe('email lead delivery config', () => {
       host: '',
       port: 0,
       secure: false,
+      requireTLS: true,
       user: '',
       password: '',
       from: '',
@@ -114,6 +116,7 @@ describe('email lead delivery config', () => {
         host: 'smtp.example.com',
         port: 587,
         secure: false,
+        requireTLS: true,
         user: 'leads@example.com',
         password: 'app-password',
         from: 'leads@example.com',
@@ -135,6 +138,7 @@ describe('email lead delivery config', () => {
         host: 'smtp.example.com',
         port: 587,
         secure: false,
+        requireTLS: true,
         user: 'leads@example.com',
         password: 'app-password',
         from: 'leads@example.com',
@@ -142,6 +146,13 @@ describe('email lead delivery config', () => {
         greetingTimeout: 6000,
         socketTimeout: 7000,
       });
+    });
+
+    it('allows plaintext SMTP only when STARTTLS is explicitly not required', () => {
+      process.env.EMAIL_LEAD_DELIVERY_ENABLED = 'true';
+      Object.assign(process.env, validClientEnv, { EMAIL_CLIENT_REQUIRE_TLS: 'false' });
+
+      expect(emailClientConfig()).toMatchObject({ secure: false, requireTLS: false });
     });
 
     it('fails fast on a non-positive timeout when the adapter is enabled', () => {

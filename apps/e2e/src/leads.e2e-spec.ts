@@ -39,6 +39,11 @@ import { AppModule as RouterAppModule } from '../../router/src/app.module';
 import { PrismaService } from '../../router/src/common/infrastructure/prisma/prisma.service';
 import { SendLeadUseCase } from '../../router/src/leads-module/application/use-cases/send-lead.use-case';
 import { DatabaseClient } from '../../router/src/leads-module/infrastructure/delivery/database-lead-delivery/database-client/database.client';
+import { EmailClient } from '../../router/src/leads-module/infrastructure/delivery/email-lead-delivery/email-client/email.client';
+import {
+  emailClientConfig,
+  type EmailClientConfigType,
+} from '../../router/src/leads-module/infrastructure/delivery/email-lead-delivery/email-client/email-client.config';
 import {
   httpLeadDeliveryConfig,
   type HttpLeadDeliveryConfigType,
@@ -194,6 +199,8 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     process.env.EMAIL_CLIENT_HOST = '127.0.0.1';
     process.env.EMAIL_CLIENT_PORT = smtp.port.toString();
     process.env.EMAIL_CLIENT_SECURE = 'false';
+    // SMTP-заглушка не поддерживает STARTTLS: открытая передача включается явно
+    process.env.EMAIL_CLIENT_REQUIRE_TLS = 'false';
     process.env.EMAIL_CLIENT_USER = 'leads@test.local';
     process.env.EMAIL_CLIENT_PASSWORD = 'test-password';
     process.env.EMAIL_CLIENT_FROM = 'leads@test.local';
@@ -638,6 +645,21 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       const expectedText = `From: ${lead.name} <${lead.contact}>\nMessage: ${lead.message}`;
 
       expect(delivery.text.replace(/\r\n/g, '\n').trim()).toBe(expectedText);
+    });
+
+    it('refuses to send credentials and the lead over SMTP without STARTTLS', async (): Promise<void> => {
+      const errors = jest.spyOn(RouterLogger.prototype, 'error').mockImplementation((): void => undefined);
+      const client = new EmailClient({
+        ...routerApp.get<EmailClientConfigType>(emailClientConfig.KEY),
+        requireTLS: true,
+      });
+      const before = smtp.messages.length;
+      try {
+        await expect(client.sendMail('inbox@test.local', 'plaintext', 'secret lead')).rejects.toThrow();
+        expect(smtp.messages).toHaveLength(before);
+      } finally {
+        errors.mockRestore();
+      }
     });
   });
 

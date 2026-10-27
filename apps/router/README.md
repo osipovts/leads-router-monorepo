@@ -64,5 +64,7 @@ permanent-ошибкой доставки (ретраев не будет), по
 - `EMAIL_LEAD_DELIVERY_TO` - адрес получателя
 - `EMAIL_CLIENT_HOST`, `EMAIL_CLIENT_PORT`, `EMAIL_CLIENT_SECURE`, `EMAIL_CLIENT_USER`, `EMAIL_CLIENT_PASSWORD`,
   `EMAIL_CLIENT_FROM` - настройки SMTP-клиента
+- `EMAIL_CLIENT_REQUIRE_TLS` - при `EMAIL_CLIENT_SECURE=false` требовать STARTTLS (по умолчанию `true`);
+  `false` разрешает передачу пароля и лида открытым текстом
 - `EMAIL_CLIENT_CONNECTION_TIMEOUT`, `EMAIL_CLIENT_GREETING_TIMEOUT`, `EMAIL_CLIENT_SOCKET_TIMEOUT` - таймауты
   соединения, greeting и бездействия сокета в миллисекундах (дефолты 10000, 10000 и 30000)

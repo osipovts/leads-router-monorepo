@@ -7,6 +7,9 @@ const emailClientConfigSchema = z.object({
   EMAIL_CLIENT_HOST: z.string().trim().min(1),
   EMAIL_CLIENT_PORT: z.coerce.number().int().min(1).max(65_535),
   EMAIL_CLIENT_SECURE: z.stringbool(),
+  // При SECURE=false без STARTTLS nodemailer передал бы пароль и лид открытым текстом;
+  // отказ от шифрования — только явной настройкой
+  EMAIL_CLIENT_REQUIRE_TLS: z.stringbool().default(true),
   EMAIL_CLIENT_USER: z.string().trim().min(1),
   EMAIL_CLIENT_PASSWORD: z.string().min(1),
   EMAIL_CLIENT_FROM: z.string().trim().pipe(z.email()),
@@ -27,6 +30,7 @@ export const emailClientConfig = registerAs(EMAIL_CLIENT_CONFIG, () => {
       host: '',
       port: 0,
       secure: false,
+      requireTLS: true,
       user: '',
       password: '',
       from: '',
@@ -42,6 +46,7 @@ export const emailClientConfig = registerAs(EMAIL_CLIENT_CONFIG, () => {
     host: env.EMAIL_CLIENT_HOST,
     port: env.EMAIL_CLIENT_PORT,
     secure: env.EMAIL_CLIENT_SECURE,
+    requireTLS: env.EMAIL_CLIENT_REQUIRE_TLS,
     user: env.EMAIL_CLIENT_USER,
     password: env.EMAIL_CLIENT_PASSWORD,
     from: env.EMAIL_CLIENT_FROM,
