@@ -2,22 +2,29 @@ import { ApplicationException, ChannelEnum, generateLeadId, LeadEntity } from '@
 import { Logger } from '@nestjs/common';
 
 import { UnsupportedLeadChannelException } from '../exceptions/unsupported-lead-channel.exception';
-import type { LeadDeliveryPort } from '../ports/lead-delivery.port';
+import type { DeliveryCheckpoint, LeadDeliveryPort } from '../ports/lead-delivery.port';
 import { SendLeadUseCase } from './send-lead.use-case';
 
 class AdapterFake implements LeadDeliveryPort {
   readonly sent: LeadEntity[] = [];
+  readonly checkpoints: DeliveryCheckpoint[] = [];
 
   constructor(
     readonly channel: ChannelEnum,
     readonly enabled: boolean,
   ) {}
 
-  send(lead: LeadEntity): Promise<void> {
+  send(lead: LeadEntity, checkpoint: DeliveryCheckpoint): Promise<void> {
     this.sent.push(lead);
+    this.checkpoints.push(checkpoint);
     return Promise.resolve();
   }
 }
+
+const CHECKPOINT: DeliveryCheckpoint = {
+  delivered: new Set(),
+  markDelivered: (): Promise<void> => Promise.resolve(),
+};
 
 // Выключенный канал пропускается; отсутствие зарегистрированного адаптера вызывает ошибку приложения.
 describe('SendLeadUseCase', () => {
@@ -50,22 +57,27 @@ describe('SendLeadUseCase', () => {
   it('sends the lead through an enabled adapter', async () => {
     const lead = makeLead();
 
-    await useCase.execute(ChannelEnum.CONSOLE, lead);
+    await useCase.execute(ChannelEnum.CONSOLE, lead, CHECKPOINT);
 
     expect(consoleAdapter.sent).toEqual([lead]);
+    expect(consoleAdapter.checkpoints).toEqual([CHECKPOINT]);
     expect(telegramAdapter.sent).toEqual([]);
   });
 
   it('skips a disabled adapter without sending or throwing', async () => {
-    await useCase.execute(ChannelEnum.TELEGRAM, makeLead());
+    await useCase.execute(ChannelEnum.TELEGRAM, makeLead(), CHECKPOINT);
 
     expect(telegramAdapter.sent).toEqual([]);
     expect(loggerVerbose).toHaveBeenCalledTimes(1);
   });
 
   it('throws an application exception for an unregistered channel', async () => {
-    await expect(useCase.execute(ChannelEnum.HTTP, makeLead())).rejects.toBeInstanceOf(UnsupportedLeadChannelException);
-    await expect(useCase.execute(ChannelEnum.HTTP, makeLead())).rejects.toBeInstanceOf(ApplicationException);
+    await expect(useCase.execute(ChannelEnum.HTTP, makeLead(), CHECKPOINT)).rejects.toBeInstanceOf(
+      UnsupportedLeadChannelException,
+    );
+    await expect(useCase.execute(ChannelEnum.HTTP, makeLead(), CHECKPOINT)).rejects.toBeInstanceOf(
+      ApplicationException,
+    );
     expect(consoleAdapter.sent).toEqual([]);
     expect(telegramAdapter.sent).toEqual([]);
   });

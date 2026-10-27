@@ -446,7 +446,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
 
   // Http delivery adapter tests
   describe('http adapter', () => {
-    it('retries temporary failures and preserves endpoint status in failure events', async (): Promise<void> => {
+    it('retries only the failed endpoint and preserves its status in failure events', async (): Promise<void> => {
       await waitForQueueIdle();
       let calls = 0;
       const failing = await startHttpSink({
@@ -464,12 +464,13 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
         expect(await job.getState()).toBe('completed');
         expect(job.attemptsMade).toBe(2);
         expect(calls).toBe(2);
+        // Исправный endpoint принял лид с первой попытки: повтор задачи его пропускает
         expect(
           http.requests.filter(
             (entry): boolean =>
               typeof entry.body === 'object' && entry.body !== null && 'id' in entry.body && entry.body.id === lead.id,
           ),
-        ).toHaveLength(2);
+        ).toHaveLength(1);
         const expectedReason: unknown = expect.stringContaining('"status":503');
         expect(errors).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -802,17 +803,19 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       const pending = new Promise<void>((resolve): void => {
         release = resolve;
       });
-      const sending = jest.spyOn(useCase, 'execute').mockImplementation(async (channel, current): Promise<void> => {
-        const target = current.id === lead.id && channel === ChannelEnum.DATABASE;
-        if (target) {
-          handling = true;
-          await pending;
-        }
-        await execute(channel, current);
-        if (target) {
-          order.push('saved');
-        }
-      });
+      const sending = jest
+        .spyOn(useCase, 'execute')
+        .mockImplementation(async (channel, current, checkpoint): Promise<void> => {
+          const target = current.id === lead.id && channel === ChannelEnum.DATABASE;
+          if (target) {
+            handling = true;
+            await pending;
+          }
+          await execute(channel, current, checkpoint);
+          if (target) {
+            order.push('saved');
+          }
+        });
       const disconnecting = jest.spyOn(prisma, '$disconnect').mockImplementation(async (): Promise<void> => {
         order.push('disconnected');
         await disconnect();

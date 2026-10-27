@@ -5,6 +5,7 @@ import { UnrecoverableError } from 'bullmq';
 import { TelegramApiError } from 'node-telegram-bot-api';
 
 import { UnsupportedLeadChannelException } from '../../application/exceptions/unsupported-lead-channel.exception';
+import type { DeliveryCheckpoint } from '../../application/ports/lead-delivery.port';
 import { SendLeadUseCase } from '../../application/use-cases/send-lead.use-case';
 import { HttpLeadDeliveryException } from '../../infrastructure/delivery/http-lead-delivery/http-lead-delivery.exception';
 import { TelegramLeadDeliveryException } from '../../infrastructure/delivery/telegram-lead-delivery/telegram-lead-delivery.exception';
@@ -12,11 +13,15 @@ import { leadsWorkerConfig } from '../../leads.config';
 import { LeadsProcessor } from './leads.processor';
 
 class SendLeadUseCaseFake {
-  readonly calls: Array<{ channel: ChannelEnum; lead: LeadEntity }> = [];
+  readonly calls: Array<{ channel: ChannelEnum; lead: LeadEntity; checkpoint: DeliveryCheckpoint }> = [];
+  // Адресаты, которых фейк отмечает доставленными, как это делает адаптер перед ошибкой попытки
+  deliverTo: readonly string[] = [];
 
-  execute(channel: ChannelEnum, lead: LeadEntity): Promise<void> {
-    this.calls.push({ channel, lead });
-    return Promise.resolve();
+  async execute(channel: ChannelEnum, lead: LeadEntity, checkpoint: DeliveryCheckpoint): Promise<void> {
+    this.calls.push({ channel, lead, checkpoint });
+    if (this.deliverTo.length > 0) {
+      await checkpoint.markDelivered(this.deliverTo);
+    }
   }
 }
 
@@ -27,8 +32,20 @@ const VALID_PAYLOAD = {
   message: 'hello',
 } satisfies SendLeadJob['lead'];
 
-function makeJob(name: string, data: SendLeadJob): Pick<Job<SendLeadJob>, 'name' | 'data'> {
-  return { name, data };
+type JobFake = Pick<Job<SendLeadJob>, 'name' | 'data' | 'updateData'>;
+
+// updateData, как и в BullMQ, заменяет data задачи целиком
+function makeJob(name: string, data: SendLeadJob): JobFake {
+  const job: JobFake = {
+    name,
+    data,
+    updateData: (next: SendLeadJob): Promise<void> => {
+      job.data = next;
+      return Promise.resolve();
+    },
+  };
+
+  return job;
 }
 
 // Некорректный лид и неизвестное имя задачи приводят к UnrecoverableError без повторов.
@@ -60,6 +77,49 @@ describe('LeadsProcessor', () => {
     expect(useCase.calls[0].channel).toBe(ChannelEnum.CONSOLE);
     expect(useCase.calls[0].lead).toBeInstanceOf(LeadEntity);
     expect(useCase.calls[0].lead.id).toBe(VALID_PAYLOAD.id);
+  });
+
+  it('passes destinations delivered in earlier attempts to the use case', async (): Promise<void> => {
+    await processor.process(
+      makeJob(QUEUES.LEADS.JOBS.SEND, {
+        channel: ChannelEnum.HTTP,
+        lead: VALID_PAYLOAD,
+        deliveredDestinations: ['http://one.test/leads'],
+      }),
+    );
+
+    expect([...useCase.calls[0].checkpoint.delivered]).toEqual(['http://one.test/leads']);
+  });
+
+  it('starts with no delivered destinations when the job has none', async (): Promise<void> => {
+    await processor.process(makeJob(QUEUES.LEADS.JOBS.SEND, { channel: ChannelEnum.HTTP, lead: VALID_PAYLOAD }));
+
+    expect(useCase.calls[0].checkpoint.delivered.size).toBe(0);
+  });
+
+  it('stores newly delivered destinations in the job together with earlier ones', async (): Promise<void> => {
+    const job = makeJob(QUEUES.LEADS.JOBS.SEND, {
+      channel: ChannelEnum.HTTP,
+      lead: VALID_PAYLOAD,
+      deliveredDestinations: ['http://one.test/leads'],
+    });
+    useCase.deliverTo = ['http://two.test/leads'];
+
+    await processor.process(job);
+
+    expect(job.data).toEqual({
+      channel: ChannelEnum.HTTP,
+      lead: VALID_PAYLOAD,
+      deliveredDestinations: ['http://one.test/leads', 'http://two.test/leads'],
+    });
+  });
+
+  it('fails malformed delivered destinations as unrecoverable without dispatching', async (): Promise<void> => {
+    const data = { channel: ChannelEnum.HTTP, lead: VALID_PAYLOAD };
+    Reflect.set(data, 'deliveredDestinations', [42]);
+
+    await expect(processor.process(makeJob(QUEUES.LEADS.JOBS.SEND, data))).rejects.toBeInstanceOf(UnrecoverableError);
+    expect(useCase.calls).toEqual([]);
   });
 
   it('fails a corrupted payload as unrecoverable with the domain error JSON', async () => {

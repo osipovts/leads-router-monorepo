@@ -2,6 +2,7 @@ import { generateLeadId, LeadEntity } from '@leads-router/common';
 import { Logger } from '@nestjs/common';
 import { AxiosError, AxiosHeaders, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 
+import type { DeliveryCheckpoint } from '../../../application/ports/lead-delivery.port';
 import type { HttpClient } from './http-client/http.client';
 import { HttpLeadDeliveryAdapter } from './http-lead-delivery.adapter';
 import type { HttpLeadDeliveryConfigType } from './http-lead-delivery.config';
@@ -11,6 +12,15 @@ import { isRetryableHttpError } from './is-retryable-http-error';
 const makeConfig = (endpoints: readonly string[]): HttpLeadDeliveryConfigType => ({
   enabled: true,
   endpoints: [...endpoints],
+});
+
+interface CheckpointFake extends DeliveryCheckpoint {
+  markDelivered: jest.MockedFunction<DeliveryCheckpoint['markDelivered']>;
+}
+
+const makeCheckpoint = (delivered: readonly string[] = []): CheckpointFake => ({
+  delivered: new Set(delivered),
+  markDelivered: jest.fn<Promise<void>, [readonly string[]]>().mockResolvedValue(undefined),
 });
 
 // Ответ сети имитируется настоящим AxiosError: адаптер читает status и code,
@@ -45,7 +55,7 @@ describe('HttpLeadDeliveryAdapter', (): void => {
       post,
     } as unknown as HttpClient);
 
-    await adapter.send(lead);
+    await adapter.send(lead, makeCheckpoint());
 
     expect(post).toHaveBeenCalledTimes(2);
     expect(post).toHaveBeenCalledWith('http://one.test/leads', lead);
@@ -71,7 +81,7 @@ describe('HttpLeadDeliveryAdapter', (): void => {
       post,
     } as unknown as HttpClient);
 
-    const failing: Promise<void> = adapter.send(lead);
+    const failing: Promise<void> = adapter.send(lead, makeCheckpoint());
 
     await expect(failing).rejects.toBeInstanceOf(HttpLeadDeliveryException);
     // Успешный endpoint тоже получил запрос: fan-out не прерывается первым отказом
@@ -95,7 +105,7 @@ describe('HttpLeadDeliveryAdapter', (): void => {
       } as unknown as HttpClient,
     );
 
-    const caught: unknown = await adapter.send(lead).catch((error: unknown): unknown => error);
+    const caught: unknown = await adapter.send(lead, makeCheckpoint()).catch((error: unknown): unknown => error);
 
     expect((caught as HttpLeadDeliveryException).isRetryable).toBe(true);
   });
@@ -107,7 +117,7 @@ describe('HttpLeadDeliveryAdapter', (): void => {
       post,
     } as unknown as HttpClient);
 
-    const caught: unknown = await adapter.send(lead).catch((error: unknown): unknown => error);
+    const caught: unknown = await adapter.send(lead, makeCheckpoint()).catch((error: unknown): unknown => error);
 
     expect((caught as HttpLeadDeliveryException).isRetryable).toBe(false);
   });
@@ -119,7 +129,7 @@ describe('HttpLeadDeliveryAdapter', (): void => {
       post,
     } as unknown as HttpClient);
 
-    const failing: Promise<void> = adapter.send(lead);
+    const failing: Promise<void> = adapter.send(lead, makeCheckpoint());
 
     const caught: unknown = await failing.catch((error: unknown): unknown => error);
     expect(caught).toBeInstanceOf(HttpLeadDeliveryException);
@@ -129,5 +139,45 @@ describe('HttpLeadDeliveryAdapter', (): void => {
 
   it('keeps a non-axios client error retryable', (): void => {
     expect(isRetryableHttpError(new Error('unexpected client failure'))).toBe(true);
+  });
+
+  describe('retry after a partial failure', (): void => {
+    const ONE = 'http://one.test/leads';
+    const TWO = 'http://two.test/leads';
+
+    it('skips endpoints that accepted the lead in an earlier attempt', async (): Promise<void> => {
+      const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
+      post.mockResolvedValue(undefined);
+      const adapter = new HttpLeadDeliveryAdapter(makeConfig([ONE, TWO]), { post } as unknown as HttpClient);
+
+      await adapter.send(lead, makeCheckpoint([ONE]));
+
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(post).toHaveBeenCalledWith(TWO, lead);
+    });
+
+    it('marks the endpoints that accepted the lead before failing the attempt', async (): Promise<void> => {
+      const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
+      post.mockImplementation((endpoint: string) =>
+        endpoint === ONE ? Promise.resolve(undefined) : Promise.reject(axiosError(503)),
+      );
+      const adapter = new HttpLeadDeliveryAdapter(makeConfig([ONE, TWO]), { post } as unknown as HttpClient);
+      const checkpoint = makeCheckpoint();
+
+      await expect(adapter.send(lead, checkpoint)).rejects.toBeInstanceOf(HttpLeadDeliveryException);
+      expect(checkpoint.markDelivered).toHaveBeenCalledTimes(1);
+      expect(checkpoint.markDelivered).toHaveBeenCalledWith([ONE]);
+    });
+
+    it('does not write a checkpoint when every endpoint accepted the lead', async (): Promise<void> => {
+      const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
+      post.mockResolvedValue(undefined);
+      const adapter = new HttpLeadDeliveryAdapter(makeConfig([ONE, TWO]), { post } as unknown as HttpClient);
+      const checkpoint = makeCheckpoint();
+
+      await adapter.send(lead, checkpoint);
+
+      expect(checkpoint.markDelivered).not.toHaveBeenCalled();
+    });
   });
 });

@@ -14,10 +14,12 @@ import z from 'zod';
 
 import { LeadDeliveryException } from '../../application/exceptions/lead-delivery.exception';
 import { UnsupportedLeadChannelException } from '../../application/exceptions/unsupported-lead-channel.exception';
+import type { DeliveryCheckpoint } from '../../application/ports/lead-delivery.port';
 import { SendLeadUseCase } from '../../application/use-cases/send-lead.use-case';
 import { leadsWorkerConfig, type LeadsWorkerConfigType } from '../../leads.config';
 
 const channelSchema = z.enum(ChannelEnum);
+const deliveredDestinationsSchema = z.array(z.string()).default([]);
 const metadataSchema = z.object({
   channel: channelSchema,
   lead: z.object({ id: z.string().regex(LeadEntityValidation.id.pattern) }),
@@ -47,22 +49,24 @@ export class LeadsProcessor extends WorkerHost implements OnApplicationBootstrap
     }
   }
 
-  async process(job: Pick<Job<SendLeadJob>, 'name' | 'data'>): Promise<void> {
+  async process(job: Pick<Job<SendLeadJob>, 'name' | 'data' | 'updateData'>): Promise<void> {
     if (job.name !== QUEUES.LEADS.JOBS.SEND) {
       throw new UnrecoverableError(`Unsupported job '${job.name}'`);
     }
 
     let lead: LeadEntity;
     let channel: ChannelEnum;
+    let delivered: string[];
     try {
       channel = channelSchema.parse(job.data.channel);
       lead = LeadEntity.from(job.data.lead);
+      delivered = deliveredDestinationsSchema.parse(job.data.deliveredDestinations);
     } catch (error: unknown) {
       throw new UnrecoverableError(JSON.stringify(Exception.toJSON(error)));
     }
 
     try {
-      await this.sendLeadUseCase.execute(channel, lead);
+      await this.sendLeadUseCase.execute(channel, lead, this.checkpointOf(job, delivered));
     } catch (error: unknown) {
       const failure =
         error instanceof Exception
@@ -74,6 +78,20 @@ export class LeadsProcessor extends WorkerHost implements OnApplicationBootstrap
       }
       throw new Error(message, { cause: error });
     }
+  }
+
+  /**
+   * Отметка хранится в данных задачи: BullMQ перечитывает их из Redis перед каждой попыткой.
+   */
+  private checkpointOf(
+    job: Pick<Job<SendLeadJob>, 'data' | 'updateData'>,
+    delivered: readonly string[],
+  ): DeliveryCheckpoint {
+    return {
+      delivered: new Set(delivered),
+      markDelivered: (destinations: readonly string[]): Promise<void> =>
+        job.updateData({ ...job.data, deliveredDestinations: [...new Set([...delivered, ...destinations])] }),
+    };
   }
 
   /**
