@@ -33,6 +33,7 @@ function isApiError(body: unknown): body is { error: ApiError } {
     'error' in body &&
     typeof body.error === 'object' &&
     body.error !== null &&
-    'message' in body.error
+    'message' in body.error &&
+    typeof body.error.message === 'string'
   );
 }
