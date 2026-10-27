@@ -11,13 +11,13 @@ const CONSOLE_LEAD_DELIVERY_CONFIG = 'CONSOLE_LEAD_DELIVERY_CONFIG';
 
 export const consoleLeadDeliveryConfig = registerAs(CONSOLE_LEAD_DELIVERY_CONFIG, () => {
   if (!isDeliveryEnabled(process.env.CONSOLE_LEAD_DELIVERY_ENABLED)) {
-    return { ENABLED: false };
+    return { enabled: false };
   }
 
   const env = consoleLeadDeliveryConfigSchema.parse(process.env);
 
   return {
-    ENABLED: env.CONSOLE_LEAD_DELIVERY_ENABLED,
+    enabled: env.CONSOLE_LEAD_DELIVERY_ENABLED,
   };
 });
 

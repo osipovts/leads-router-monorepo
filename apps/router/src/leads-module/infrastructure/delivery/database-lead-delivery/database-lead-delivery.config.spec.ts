@@ -30,19 +30,19 @@ describe('databaseLeadDeliveryConfig', () => {
   });
 
   it('returns a disabled stub when the flag is not set', () => {
-    expect(databaseLeadDeliveryConfig()).toEqual({ ENABLED: false });
+    expect(databaseLeadDeliveryConfig()).toEqual({ enabled: false });
   });
 
   it('returns a disabled stub when the flag is false', () => {
     process.env.DATABASE_LEAD_DELIVERY_ENABLED = 'false';
 
-    expect(databaseLeadDeliveryConfig()).toEqual({ ENABLED: false });
+    expect(databaseLeadDeliveryConfig()).toEqual({ enabled: false });
   });
 
   it('parses the flag when the adapter is enabled', () => {
     process.env.DATABASE_LEAD_DELIVERY_ENABLED = 'true';
 
-    expect(databaseLeadDeliveryConfig()).toEqual({ ENABLED: true });
+    expect(databaseLeadDeliveryConfig()).toEqual({ enabled: true });
   });
 
   it('fails fast on a malformed flag', () => {

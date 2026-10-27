@@ -17,7 +17,7 @@ export class DatabaseLeadDeliveryAdapter implements LeadDeliveryPort {
   ) {}
 
   get enabled(): boolean {
-    return this.config.ENABLED;
+    return this.config.enabled;
   }
 
   async send(lead: LeadEntity): Promise<void> {

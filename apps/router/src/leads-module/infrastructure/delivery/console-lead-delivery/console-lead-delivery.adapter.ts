@@ -13,7 +13,7 @@ export class ConsoleLeadDeliveryAdapter implements LeadDeliveryPort {
   constructor(@Inject(consoleLeadDeliveryConfig.KEY) private readonly config: ConsoleLeadDeliveryConfigType) {}
 
   get enabled(): boolean {
-    return this.config.ENABLED;
+    return this.config.enabled;
   }
 
   async send(lead: LeadEntity): Promise<void> {

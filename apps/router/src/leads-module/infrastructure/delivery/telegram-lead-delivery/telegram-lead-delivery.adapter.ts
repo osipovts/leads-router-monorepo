@@ -17,16 +17,16 @@ export class TelegramLeadDeliveryAdapter implements LeadDeliveryPort {
   ) {}
 
   get enabled(): boolean {
-    return this.config.ENABLED;
+    return this.config.enabled;
   }
 
   async send(lead: LeadEntity): Promise<void> {
     try {
-      await this.client.sendMessage(this.config.CHAT_ID, lead.toString());
+      await this.client.sendMessage(this.config.chatId, lead.toString());
     } catch (error: unknown) {
       throw new TelegramLeadDeliveryException(error);
     }
 
-    this.logger.log(`Lead ${lead.id} sent to telegram chat ${this.config.CHAT_ID}`);
+    this.logger.log(`Lead ${lead.id} sent to telegram chat ${this.config.chatId}`);
   }
 }

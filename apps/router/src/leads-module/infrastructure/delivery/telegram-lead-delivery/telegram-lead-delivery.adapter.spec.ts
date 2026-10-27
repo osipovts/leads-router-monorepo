@@ -7,7 +7,7 @@ import { TelegramLeadDeliveryAdapter } from './telegram-lead-delivery.adapter';
 import type { TelegramLeadDeliveryConfigType } from './telegram-lead-delivery.config';
 import { TelegramLeadDeliveryException } from './telegram-lead-delivery.exception';
 
-const CONFIG = { ENABLED: true, CHAT_ID: '193166758' } satisfies TelegramLeadDeliveryConfigType;
+const CONFIG = { enabled: true, chatId: '193166758' } satisfies TelegramLeadDeliveryConfigType;
 
 describe('TelegramLeadDeliveryAdapter', (): void => {
   let sendMessage: jest.MockedFunction<TelegramClient['sendMessage']>;
@@ -31,7 +31,7 @@ describe('TelegramLeadDeliveryAdapter', (): void => {
 
     await adapter.send(lead);
 
-    expect(sendMessage).toHaveBeenCalledWith(CONFIG.CHAT_ID, lead.toString());
+    expect(sendMessage).toHaveBeenCalledWith(CONFIG.chatId, lead.toString());
   });
 
   it('wraps a client failure into the delivery exception', async (): Promise<void> => {

@@ -11,13 +11,13 @@ const DATABASE_LEAD_DELIVERY_CONFIG = 'DATABASE_LEAD_DELIVERY_CONFIG';
 
 export const databaseLeadDeliveryConfig = registerAs(DATABASE_LEAD_DELIVERY_CONFIG, () => {
   if (!isDeliveryEnabled(process.env.DATABASE_LEAD_DELIVERY_ENABLED)) {
-    return { ENABLED: false };
+    return { enabled: false };
   }
 
   const env = databaseLeadDeliveryConfigSchema.parse(process.env);
 
   return {
-    ENABLED: env.DATABASE_LEAD_DELIVERY_ENABLED,
+    enabled: env.DATABASE_LEAD_DELIVERY_ENABLED,
   };
 });
 

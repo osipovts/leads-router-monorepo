@@ -19,11 +19,11 @@ export class HttpLeadDeliveryAdapter implements LeadDeliveryPort {
   ) {}
 
   get enabled(): boolean {
-    return this.config.ENABLED;
+    return this.config.enabled;
   }
 
   async send(lead: LeadEntity): Promise<void> {
-    const jobs = this.config.ENDPOINTS.map((endpoint) => this.client.post(endpoint, lead));
+    const jobs = this.config.endpoints.map((endpoint) => this.client.post(endpoint, lead));
     const results = await Promise.allSettled(jobs);
 
     const failures: HttpDeliveryFailure[] = [];
@@ -31,7 +31,7 @@ export class HttpLeadDeliveryAdapter implements LeadDeliveryPort {
       if (result.status === 'rejected') {
         const error: unknown = result.reason;
         failures.push({
-          endpoint: this.config.ENDPOINTS[index],
+          endpoint: this.config.endpoints[index],
           status: axios.isAxiosError(error) ? error.response?.status : undefined,
           code: axios.isAxiosError(error) ? error.code : undefined,
           isRetryable: isRetryableHttpError(error),
@@ -43,7 +43,7 @@ export class HttpLeadDeliveryAdapter implements LeadDeliveryPort {
     this.logger.verbose(`Rejected ${failures.length.toString()} request(s)`);
 
     if (failures.length > 0) {
-      throw new HttpLeadDeliveryException(failures, this.config.ENDPOINTS.length);
+      throw new HttpLeadDeliveryException(failures, this.config.endpoints.length);
     }
   }
 }

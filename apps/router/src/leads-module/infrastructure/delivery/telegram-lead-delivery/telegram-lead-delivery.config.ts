@@ -12,14 +12,14 @@ const TELEGRAM_LEAD_DELIVERY_CONFIG = 'TELEGRAM_LEAD_DELIVERY_CONFIG';
 
 export const telegramLeadDeliveryConfig = registerAs(TELEGRAM_LEAD_DELIVERY_CONFIG, () => {
   if (!isDeliveryEnabled(process.env.TELEGRAM_LEAD_DELIVERY_ENABLED)) {
-    return { ENABLED: false, CHAT_ID: '' };
+    return { enabled: false, chatId: '' };
   }
 
   const env = telegramLeadDeliveryConfigSchema.parse(process.env);
 
   return {
-    ENABLED: env.TELEGRAM_LEAD_DELIVERY_ENABLED,
-    CHAT_ID: env.TELEGRAM_LEAD_DELIVERY_CHAT_ID,
+    enabled: env.TELEGRAM_LEAD_DELIVERY_ENABLED,
+    chatId: env.TELEGRAM_LEAD_DELIVERY_CHAT_ID,
   };
 });
 

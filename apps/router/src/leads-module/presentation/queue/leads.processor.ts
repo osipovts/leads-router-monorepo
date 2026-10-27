@@ -15,7 +15,7 @@ import z from 'zod';
 import { LeadDeliveryException } from '../../application/exceptions/lead-delivery.exception';
 import { UnsupportedLeadChannelException } from '../../application/exceptions/unsupported-lead-channel.exception';
 import { SendLeadUseCase } from '../../application/use-cases/send-lead.use-case';
-import { type LeadsWorkerConfig, leadsWorkerConfig } from '../../leads.config';
+import { leadsWorkerConfig, type LeadsWorkerConfigType } from '../../leads.config';
 
 const channelSchema = z.enum(ChannelEnum);
 const metadataSchema = z.object({
@@ -30,7 +30,7 @@ export class LeadsProcessor extends WorkerHost implements OnApplicationBootstrap
 
   constructor(
     private readonly sendLeadUseCase: SendLeadUseCase,
-    @Inject(leadsWorkerConfig.KEY) private readonly config: LeadsWorkerConfig,
+    @Inject(leadsWorkerConfig.KEY) private readonly config: LeadsWorkerConfigType,
   ) {
     super();
   }

@@ -32,14 +32,14 @@ describe('http lead delivery config', () => {
 
   describe('httpLeadDeliveryConfig', () => {
     it('returns a disabled stub when the flag is not set', () => {
-      expect(httpLeadDeliveryConfig()).toEqual({ ENABLED: false, ENDPOINTS: [] });
+      expect(httpLeadDeliveryConfig()).toEqual({ enabled: false, endpoints: [] });
     });
 
     it('returns a disabled stub when the flag is false, ignoring malformed endpoints', () => {
       process.env.HTTP_LEAD_DELIVERY_ENABLED = 'false';
       process.env.HTTP_LEAD_DELIVERY_ENDPOINTS = 'not-a-url';
 
-      expect(httpLeadDeliveryConfig()).toEqual({ ENABLED: false, ENDPOINTS: [] });
+      expect(httpLeadDeliveryConfig()).toEqual({ enabled: false, endpoints: [] });
     });
 
     it('parses endpoints when the adapter is enabled', () => {
@@ -47,8 +47,8 @@ describe('http lead delivery config', () => {
       process.env.HTTP_LEAD_DELIVERY_ENDPOINTS = 'http://a.example/leads, https://b.example/leads';
 
       expect(httpLeadDeliveryConfig()).toEqual({
-        ENABLED: true,
-        ENDPOINTS: ['http://a.example/leads', 'https://b.example/leads'],
+        enabled: true,
+        endpoints: ['http://a.example/leads', 'https://b.example/leads'],
       });
     });
 

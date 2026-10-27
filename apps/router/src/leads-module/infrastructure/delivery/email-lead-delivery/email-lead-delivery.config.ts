@@ -12,14 +12,14 @@ const EMAIL_LEAD_DELIVERY_CONFIG = 'EMAIL_LEAD_DELIVERY_CONFIG';
 
 export const emailLeadDeliveryConfig = registerAs(EMAIL_LEAD_DELIVERY_CONFIG, () => {
   if (!isDeliveryEnabled(process.env.EMAIL_LEAD_DELIVERY_ENABLED)) {
-    return { ENABLED: false, TO: '' };
+    return { enabled: false, to: '' };
   }
 
   const env = emailLeadDeliveryConfigSchema.parse(process.env);
 
   return {
-    ENABLED: env.EMAIL_LEAD_DELIVERY_ENABLED,
-    TO: env.EMAIL_LEAD_DELIVERY_TO,
+    enabled: env.EMAIL_LEAD_DELIVERY_ENABLED,
+    to: env.EMAIL_LEAD_DELIVERY_TO,
   };
 });
 

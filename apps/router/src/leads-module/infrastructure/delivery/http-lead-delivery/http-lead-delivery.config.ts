@@ -15,14 +15,14 @@ const HTTP_LEAD_DELIVERY_CONFIG = 'HTTP_LEAD_DELIVERY_CONFIG';
 
 export const httpLeadDeliveryConfig = registerAs(HTTP_LEAD_DELIVERY_CONFIG, () => {
   if (!isDeliveryEnabled(process.env.HTTP_LEAD_DELIVERY_ENABLED)) {
-    return { ENABLED: false, ENDPOINTS: [] };
+    return { enabled: false, endpoints: [] };
   }
 
   const env = httpLeadDeliveryConfigSchema.parse(process.env);
 
   return {
-    ENABLED: env.HTTP_LEAD_DELIVERY_ENABLED,
-    ENDPOINTS: env.HTTP_LEAD_DELIVERY_ENDPOINTS,
+    enabled: env.HTTP_LEAD_DELIVERY_ENABLED,
+    endpoints: env.HTTP_LEAD_DELIVERY_ENDPOINTS,
   };
 });
 

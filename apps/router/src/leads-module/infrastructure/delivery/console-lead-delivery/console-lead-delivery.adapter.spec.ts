@@ -9,7 +9,7 @@ describe('ConsoleLeadDeliveryAdapter', (): void => {
     const logged = jest.spyOn(Logger.prototype, 'log').mockImplementation((): void => undefined);
     try {
       const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
-      const adapter = new ConsoleLeadDeliveryAdapter({ ENABLED: true } satisfies ConsoleLeadDeliveryConfigType);
+      const adapter = new ConsoleLeadDeliveryAdapter({ enabled: true } satisfies ConsoleLeadDeliveryConfigType);
 
       await adapter.send(lead);
 

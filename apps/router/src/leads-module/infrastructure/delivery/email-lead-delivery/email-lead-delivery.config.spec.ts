@@ -44,21 +44,21 @@ describe('email lead delivery config', () => {
 
   describe('emailLeadDeliveryConfig', () => {
     it('returns a disabled stub when the flag is not set', () => {
-      expect(emailLeadDeliveryConfig()).toEqual({ ENABLED: false, TO: '' });
+      expect(emailLeadDeliveryConfig()).toEqual({ enabled: false, to: '' });
     });
 
     it('returns a disabled stub when the flag is false, ignoring a malformed recipient', () => {
       process.env.EMAIL_LEAD_DELIVERY_ENABLED = 'false';
       process.env.EMAIL_LEAD_DELIVERY_TO = 'not-an-email';
 
-      expect(emailLeadDeliveryConfig()).toEqual({ ENABLED: false, TO: '' });
+      expect(emailLeadDeliveryConfig()).toEqual({ enabled: false, to: '' });
     });
 
     it('parses the recipient when the adapter is enabled', () => {
       process.env.EMAIL_LEAD_DELIVERY_ENABLED = 'true';
       process.env.EMAIL_LEAD_DELIVERY_TO = 'inbox@example.com';
 
-      expect(emailLeadDeliveryConfig()).toEqual({ ENABLED: true, TO: 'inbox@example.com' });
+      expect(emailLeadDeliveryConfig()).toEqual({ enabled: true, to: 'inbox@example.com' });
     });
 
     it('fails fast when the adapter is enabled but the recipient is malformed', () => {

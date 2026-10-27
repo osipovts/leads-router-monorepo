@@ -36,21 +36,21 @@ describe('telegram lead delivery config', () => {
 
   describe('telegramLeadDeliveryConfig', () => {
     it('returns a disabled stub when the flag is not set', () => {
-      expect(telegramLeadDeliveryConfig()).toEqual({ ENABLED: false, CHAT_ID: '' });
+      expect(telegramLeadDeliveryConfig()).toEqual({ enabled: false, chatId: '' });
     });
 
     it('returns a disabled stub when the flag is false, ignoring an empty chat id', () => {
       process.env.TELEGRAM_LEAD_DELIVERY_ENABLED = 'false';
       process.env.TELEGRAM_LEAD_DELIVERY_CHAT_ID = '';
 
-      expect(telegramLeadDeliveryConfig()).toEqual({ ENABLED: false, CHAT_ID: '' });
+      expect(telegramLeadDeliveryConfig()).toEqual({ enabled: false, chatId: '' });
     });
 
     it('parses the chat id when the adapter is enabled', () => {
       process.env.TELEGRAM_LEAD_DELIVERY_ENABLED = 'true';
       process.env.TELEGRAM_LEAD_DELIVERY_CHAT_ID = ' 193166758 ';
 
-      expect(telegramLeadDeliveryConfig()).toEqual({ ENABLED: true, CHAT_ID: '193166758' });
+      expect(telegramLeadDeliveryConfig()).toEqual({ enabled: true, chatId: '193166758' });
     });
 
     it('fails fast when the adapter is enabled but the chat id is missing', () => {

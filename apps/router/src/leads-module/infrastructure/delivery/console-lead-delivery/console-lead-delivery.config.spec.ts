@@ -30,19 +30,19 @@ describe('consoleLeadDeliveryConfig', () => {
   });
 
   it('returns a disabled stub when the flag is not set', () => {
-    expect(consoleLeadDeliveryConfig()).toEqual({ ENABLED: false });
+    expect(consoleLeadDeliveryConfig()).toEqual({ enabled: false });
   });
 
   it('returns a disabled stub when the flag is false', () => {
     process.env.CONSOLE_LEAD_DELIVERY_ENABLED = 'false';
 
-    expect(consoleLeadDeliveryConfig()).toEqual({ ENABLED: false });
+    expect(consoleLeadDeliveryConfig()).toEqual({ enabled: false });
   });
 
   it('parses the flag when the adapter is enabled', () => {
     process.env.CONSOLE_LEAD_DELIVERY_ENABLED = 'true';
 
-    expect(consoleLeadDeliveryConfig()).toEqual({ ENABLED: true });
+    expect(consoleLeadDeliveryConfig()).toEqual({ enabled: true });
   });
 
   it('fails fast on a malformed flag', () => {

@@ -6,7 +6,7 @@ import { EmailLeadDeliveryAdapter } from './email-lead-delivery.adapter';
 import type { EmailLeadDeliveryConfigType } from './email-lead-delivery.config';
 import { EmailLeadDeliveryException } from './email-lead-delivery.exception';
 
-const CONFIG = { ENABLED: true, TO: 'inbox@example.com' } satisfies EmailLeadDeliveryConfigType;
+const CONFIG = { enabled: true, to: 'inbox@example.com' } satisfies EmailLeadDeliveryConfigType;
 
 describe('EmailLeadDeliveryAdapter', (): void => {
   let sendMail: jest.MockedFunction<EmailClient['sendMail']>;
@@ -30,7 +30,7 @@ describe('EmailLeadDeliveryAdapter', (): void => {
 
     await adapter.send(lead);
 
-    expect(sendMail).toHaveBeenCalledWith(CONFIG.TO, `New lead from ${lead.name}`, lead.toString());
+    expect(sendMail).toHaveBeenCalledWith(CONFIG.to, `New lead from ${lead.name}`, lead.toString());
   });
 
   it('wraps a client failure into the delivery exception', async (): Promise<void> => {

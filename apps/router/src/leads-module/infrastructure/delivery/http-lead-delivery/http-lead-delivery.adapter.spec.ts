@@ -9,8 +9,8 @@ import { HttpLeadDeliveryException } from './http-lead-delivery.exception';
 import { isRetryableHttpError } from './is-retryable-http-error';
 
 const makeConfig = (endpoints: readonly string[]): HttpLeadDeliveryConfigType => ({
-  ENABLED: true,
-  ENDPOINTS: [...endpoints],
+  enabled: true,
+  endpoints: [...endpoints],
 });
 
 // Ответ сети имитируется настоящим AxiosError: адаптер читает status и code,

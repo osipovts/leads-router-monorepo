@@ -26,7 +26,7 @@ describe('DatabaseLeadDeliveryAdapter', (): void => {
   it('saves the lead through the database client', async (): Promise<void> => {
     const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
     saveLead.mockResolvedValue(undefined);
-    const adapter = new DatabaseLeadDeliveryAdapter({ ENABLED: true } satisfies DatabaseLeadDeliveryConfigType, {
+    const adapter = new DatabaseLeadDeliveryAdapter({ enabled: true } satisfies DatabaseLeadDeliveryConfigType, {
       saveLead,
     } as unknown as DatabaseClient);
 
@@ -39,7 +39,7 @@ describe('DatabaseLeadDeliveryAdapter', (): void => {
     const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
     const failure = new Error('postgres is down');
     saveLead.mockRejectedValue(failure);
-    const adapter = new DatabaseLeadDeliveryAdapter({ ENABLED: true } satisfies DatabaseLeadDeliveryConfigType, {
+    const adapter = new DatabaseLeadDeliveryAdapter({ enabled: true } satisfies DatabaseLeadDeliveryConfigType, {
       saveLead,
     } as unknown as DatabaseClient);
 

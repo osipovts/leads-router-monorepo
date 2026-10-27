@@ -17,18 +17,18 @@ export class EmailLeadDeliveryAdapter implements LeadDeliveryPort {
   ) {}
 
   get enabled(): boolean {
-    return this.config.ENABLED;
+    return this.config.enabled;
   }
 
   async send(lead: LeadEntity): Promise<void> {
     const subject = `New lead from ${lead.name}`;
 
     try {
-      await this.client.sendMail(this.config.TO, subject, lead.toString());
+      await this.client.sendMail(this.config.to, subject, lead.toString());
     } catch (error: unknown) {
       throw new EmailLeadDeliveryException(error);
     }
 
-    this.logger.log(`Lead ${lead.id} sent to ${this.config.TO}`);
+    this.logger.log(`Lead ${lead.id} sent to ${this.config.to}`);
   }
 }
