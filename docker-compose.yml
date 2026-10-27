@@ -82,7 +82,7 @@ services:
       target: frontend
     restart: unless-stopped
     ports:
-      - '${FRONTEND_FORWARD_PORT:-5173}:80'
+      - '${FRONTEND_FORWARD_PORT:-5173}:8080'
     depends_on:
       - gateway
 

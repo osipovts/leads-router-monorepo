@@ -60,6 +60,7 @@ COPY --from=build --chown=65532:65532 /prod/router ./
 CMD ["dist/main.js"]
 
 # --- RUN: frontend ---
-FROM nginx:alpine AS frontend
+# Непривилегированный образ работает не от root, поэтому слушает 8080 вместо 80
+FROM nginxinc/nginx-unprivileged:alpine AS frontend
 COPY apps/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /workspace/apps/frontend/dist /usr/share/nginx/html
