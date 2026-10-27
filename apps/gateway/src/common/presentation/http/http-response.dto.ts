@@ -1,9 +1,5 @@
 import type { PlainObject } from '@leads-router/common';
-import {
-  ExceptionInterface,
-  LayerEnum,
-  ModuleEnum,
-} from '@leads-router/common';
+import { ExceptionInterface, LayerEnum, ModuleEnum } from '@leads-router/common';
 import { ApiProperty } from '@nestjs/swagger';
 
 /**

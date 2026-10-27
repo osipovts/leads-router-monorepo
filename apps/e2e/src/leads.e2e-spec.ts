@@ -111,10 +111,14 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
   };
 
   const settledHttpJob = async (id: string): Promise<Job<SendLeadJob>> => {
-    return waitFor(async (): Promise<Job<SendLeadJob> | undefined> => {
-      const jobs = await leadsQueue.getJobs(['completed', 'failed']);
-      return jobs.find((entry): boolean => entry.data.lead.id === id && entry.data.channel === ChannelEnum.HTTP);
-    }, 10_000, 'HTTP delivery job settled');
+    return waitFor(
+      async (): Promise<Job<SendLeadJob> | undefined> => {
+        const jobs = await leadsQueue.getJobs(['completed', 'failed']);
+        return jobs.find((entry): boolean => entry.data.lead.id === id && entry.data.channel === ChannelEnum.HTTP);
+      },
+      10_000,
+      'HTTP delivery job settled',
+    );
   };
 
   const waitForQueueIdle = async (): Promise<void> => {
@@ -137,10 +141,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
       message: `integration test lead (${label})`,
     };
 
-    const response = await request(gatewayApp.getHttpServer())
-      .post('/api/v1/leads')
-      .send(lead)
-      .expect(201);
+    const response = await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
 
     return { lead, response };
   };
@@ -287,10 +288,7 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     });
 
     it('rejects an invalid lead with a validation error', async () => {
-      const response = await request(gatewayApp.getHttpServer())
-        .post('/api/v1/leads')
-        .send({ name: '' })
-        .expect(400);
+      const response = await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send({ name: '' }).expect(400);
 
       const body = response.body as { success: boolean; error: { error: string } };
 
@@ -401,12 +399,16 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
         const lead = new LeadEntity(generateLeadId(), 'DB outage', 'db-outage@test.local', 'hello');
         await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(201);
 
-        const job = await waitFor(async (): Promise<Job<SendLeadJob> | undefined> => {
-          const jobs = await leadsQueue.getJobs(['failed']);
-          return jobs.find(
-            (entry): boolean => entry.data.lead.id === lead.id && entry.data.channel === ChannelEnum.DATABASE,
-          );
-        }, 20_000, 'database job failed');
+        const job = await waitFor(
+          async (): Promise<Job<SendLeadJob> | undefined> => {
+            const jobs = await leadsQueue.getJobs(['failed']);
+            return jobs.find(
+              (entry): boolean => entry.data.lead.id === lead.id && entry.data.channel === ChannelEnum.DATABASE,
+            );
+          },
+          20_000,
+          'database job failed',
+        );
 
         // Остановка контейнера снимает проброс порта: соединения отклоняются мгновенно,
         // все три попытки исчерпываются быстрее, чем истечёт таймаут соединения пула
@@ -638,17 +640,21 @@ describe('Lead broadcast full path: gateway -> BullMQ -> router -> delivery adap
     it('retries missing channels without duplicating accepted jobs after a partial failure', async (): Promise<void> => {
       const lead = new LeadEntity(generateLeadId(), 'Retry', 'retry@test.local', 'hello');
       const realAdd = leadsQueue.add.bind(leadsQueue);
-      const add = jest.spyOn(leadsQueue, 'add').mockImplementation((name, data, options): ReturnType<typeof realAdd> => {
-        if (data.lead.id === lead.id && data.channel === ChannelEnum.EMAIL) {
-          return Promise.reject(new Error('simulated enqueue failure'));
-        }
-        return realAdd(name, data, options);
-      });
+      const add = jest
+        .spyOn(leadsQueue, 'add')
+        .mockImplementation((name, data, options): ReturnType<typeof realAdd> => {
+          if (data.lead.id === lead.id && data.channel === ChannelEnum.EMAIL) {
+            return Promise.reject(new Error('simulated enqueue failure'));
+          }
+          return realAdd(name, data, options);
+        });
 
       try {
         await request(gatewayApp.getHttpServer()).post('/api/v1/leads').send(lead).expect(503);
         expect(await queuedChannels(lead.id)).toEqual(
-          Object.values(ChannelEnum).filter((channel): boolean => channel !== ChannelEnum.EMAIL).sort(),
+          Object.values(ChannelEnum)
+            .filter((channel): boolean => channel !== ChannelEnum.EMAIL)
+            .sort(),
         );
       } finally {
         add.mockRestore();

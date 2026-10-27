@@ -110,7 +110,9 @@ describe('LeadsProcessor', () => {
   it('does not retry a delivery failure the adapter marked permanent', async (): Promise<void> => {
     jest
       .spyOn(useCase, 'execute')
-      .mockRejectedValue(new HttpLeadDeliveryException([{ endpoint: 'http://one.test/leads', status: 404, isRetryable: false }], 1));
+      .mockRejectedValue(
+        new HttpLeadDeliveryException([{ endpoint: 'http://one.test/leads', status: 404, isRetryable: false }], 1),
+      );
     const job = makeJob(QUEUES.LEADS.JOBS.SEND, { channel: ChannelEnum.HTTP, lead: VALID_PAYLOAD });
 
     await expect(processor.process(job)).rejects.toBeInstanceOf(UnrecoverableError);

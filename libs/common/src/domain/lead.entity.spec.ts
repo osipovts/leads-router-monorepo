@@ -136,7 +136,9 @@ describe('LeadEntity', () => {
         message: 'Lead entity fields violate their constraints',
         details: { violations: { name: 'must be at least 1 character(s) long' } },
       });
-      expect(error.toString()).toBe('[COMMON DOMAIN] InvalidLeadException: Lead entity fields violate their constraints');
+      expect(error.toString()).toBe(
+        '[COMMON DOMAIN] InvalidLeadException: Lead entity fields violate their constraints',
+      );
     });
   });
 });

@@ -33,7 +33,9 @@ describe('PrismaRepository.execute', (): void => {
   });
 
   it('detects an unavailability code through a cause chain', async (): Promise<void> => {
-    const failure = new Error('adapter failed', { cause: Object.assign(new Error('socket'), { code: 'ECONNREFUSED' }) });
+    const failure = new Error('adapter failed', {
+      cause: Object.assign(new Error('socket'), { code: 'ECONNREFUSED' }),
+    });
 
     await expect(repository.run((): Promise<never> => Promise.reject(failure))).rejects.toBeInstanceOf(
       DatabaseUnavailableException,

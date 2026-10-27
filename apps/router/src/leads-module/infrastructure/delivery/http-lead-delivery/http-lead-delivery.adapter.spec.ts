@@ -18,9 +18,7 @@ const makeConfig = (endpoints: readonly string[]): HttpLeadDeliveryConfigType =>
 const axiosError = (status: number | undefined, code = 'ETIMEDOUT'): AxiosError => {
   const config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig;
   const response: AxiosResponse | undefined =
-    status === undefined
-      ? undefined
-      : { status, statusText: '', data: null, headers: {}, config };
+    status === undefined ? undefined : { status, statusText: '', data: null, headers: {}, config };
 
   return new AxiosError('request failed', code, config, undefined, response);
 };
@@ -90,9 +88,12 @@ describe('HttpLeadDeliveryAdapter', (): void => {
     const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
     post.mockRejectedValueOnce(axiosError(400));
     post.mockRejectedValueOnce(axiosError(503));
-    const adapter = new HttpLeadDeliveryAdapter(makeConfig(['http://permanent.test/leads', 'http://temporary.test/leads']), {
-      post,
-    } as unknown as HttpClient);
+    const adapter = new HttpLeadDeliveryAdapter(
+      makeConfig(['http://permanent.test/leads', 'http://temporary.test/leads']),
+      {
+        post,
+      } as unknown as HttpClient,
+    );
 
     const caught: unknown = await adapter.send(lead).catch((error: unknown): unknown => error);
 

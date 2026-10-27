@@ -1,5 +1,5 @@
-import type { ValidationPipeOptions } from '@nestjs/common'
-import { ValidationPipe } from '@nestjs/common'
+import type { ValidationPipeOptions } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 
 export class HttpValidationPipe extends ValidationPipe {
   constructor(
@@ -9,6 +9,6 @@ export class HttpValidationPipe extends ValidationPipe {
       whitelist: true,
     },
   ) {
-    super(options)
+    super(options);
   }
 }

@@ -64,9 +64,7 @@ describe('SendLeadUseCase', () => {
   });
 
   it('throws an application exception for an unregistered channel', async () => {
-    await expect(useCase.execute(ChannelEnum.HTTP, makeLead())).rejects.toBeInstanceOf(
-      UnsupportedLeadChannelException,
-    );
+    await expect(useCase.execute(ChannelEnum.HTTP, makeLead())).rejects.toBeInstanceOf(UnsupportedLeadChannelException);
     await expect(useCase.execute(ChannelEnum.HTTP, makeLead())).rejects.toBeInstanceOf(ApplicationException);
     expect(consoleAdapter.sent).toEqual([]);
     expect(telegramAdapter.sent).toEqual([]);

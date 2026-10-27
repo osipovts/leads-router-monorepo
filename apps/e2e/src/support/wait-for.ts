@@ -10,7 +10,11 @@ function isMet<T>(value: T): value is Met<T> {
  * Периодически вызывает probe, пока результат отличается от null, undefined и false.
  * Возвращает результат или выбрасывает ошибку по истечении timeoutMs.
  */
-export async function waitFor<T>(probe: () => Promise<T> | T, timeoutMs = 10_000, label = 'condition'): Promise<Met<T>> {
+export async function waitFor<T>(
+  probe: () => Promise<T> | T,
+  timeoutMs = 10_000,
+  label = 'condition',
+): Promise<Met<T>> {
   const deadline = Date.now() + timeoutMs;
 
   for (;;) {

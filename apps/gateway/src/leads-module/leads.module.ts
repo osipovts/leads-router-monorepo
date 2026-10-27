@@ -16,9 +16,6 @@ import { BroadcastLeadsController } from './presentation/http/broadcast-leads.co
     BullModule.registerQueue({ name: QUEUES.LEADS.QUEUE_NAME }),
   ],
   controllers: [BroadcastLeadsController],
-  providers: [
-    BroadcastLeadUseCase,
-    { provide: QUEUE_PORT, useClass: BullmqQueueService },
-  ],
+  providers: [BroadcastLeadUseCase, { provide: QUEUE_PORT, useClass: BullmqQueueService }],
 })
 export class LeadsModule {}
