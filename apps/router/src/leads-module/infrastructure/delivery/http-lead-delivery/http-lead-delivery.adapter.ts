@@ -3,6 +3,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 
 import type { DeliveryCheckpoint, LeadDeliveryPort } from '../../../application/ports/lead-delivery.port';
+import { endpointKey } from './endpoint-key';
 import { HttpClient } from './http-client/http.client';
 import { httpLeadDeliveryConfig, type HttpLeadDeliveryConfigType } from './http-lead-delivery.config';
 import { type HttpDeliveryFailure, HttpLeadDeliveryException } from './http-lead-delivery.exception';
@@ -23,14 +24,16 @@ export class HttpLeadDeliveryAdapter implements LeadDeliveryPort {
   }
 
   async send(lead: LeadEntity, checkpoint: DeliveryCheckpoint): Promise<void> {
-    const pending = this.config.endpoints.filter((endpoint): boolean => !checkpoint.delivered.has(endpoint));
+    const pending = this.config.endpoints.filter(
+      (endpoint): boolean => !checkpoint.delivered.has(endpointKey(endpoint)),
+    );
     const results = await Promise.allSettled(pending.map((endpoint) => this.client.post(endpoint, lead)));
 
     const delivered: string[] = [];
     const failures: HttpDeliveryFailure[] = [];
     results.forEach((result, index): void => {
       if (result.status === 'fulfilled') {
-        delivered.push(pending[index]);
+        delivered.push(endpointKey(pending[index]));
       } else {
         const error: unknown = result.reason;
         failures.push({

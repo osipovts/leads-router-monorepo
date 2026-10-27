@@ -160,28 +160,45 @@ describe('HttpLeadDeliveryAdapter', (): void => {
     const ONE = 'http://one.test/leads';
     const TWO = 'http://two.test/leads';
 
+    const failTwoOnce = (): void => {
+      post.mockImplementation((endpoint: string) =>
+        endpoint === ONE ? Promise.resolve(undefined) : Promise.reject(axiosError(503)),
+      );
+    };
+
     it('skips endpoints that accepted the lead in an earlier attempt', async (): Promise<void> => {
       const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
-      post.mockResolvedValue(undefined);
       const adapter = new HttpLeadDeliveryAdapter(makeConfig([ONE, TWO]), { post } as unknown as HttpClient);
+      const firstAttempt = makeCheckpoint();
+      failTwoOnce();
+      await expect(adapter.send(lead, firstAttempt)).rejects.toBeInstanceOf(HttpLeadDeliveryException);
+      post.mockReset();
+      post.mockResolvedValue(undefined);
 
-      await adapter.send(lead, makeCheckpoint([ONE]));
+      // Повтор получает ровно то, что сохранила прошлая попытка
+      await adapter.send(lead, makeCheckpoint(firstAttempt.markDelivered.mock.calls[0][0]));
 
       expect(post).toHaveBeenCalledTimes(1);
       expect(post).toHaveBeenCalledWith(TWO, lead);
     });
 
-    it('marks the endpoints that accepted the lead before failing the attempt', async (): Promise<void> => {
+    it('marks the endpoints that accepted the lead without storing their URLs', async (): Promise<void> => {
       const lead = new LeadEntity(generateLeadId(), 'Иван', 'ivan@example.com', 'hello');
-      post.mockImplementation((endpoint: string) =>
-        endpoint === ONE ? Promise.resolve(undefined) : Promise.reject(axiosError(503)),
+      const adapter = new HttpLeadDeliveryAdapter(
+        makeConfig(['https://user:s3cret@one.test/leads?api_key=s3cret', TWO]),
+        { post } as unknown as HttpClient,
       );
-      const adapter = new HttpLeadDeliveryAdapter(makeConfig([ONE, TWO]), { post } as unknown as HttpClient);
       const checkpoint = makeCheckpoint();
+      post.mockImplementation((endpoint: string) =>
+        endpoint === TWO ? Promise.reject(axiosError(503)) : Promise.resolve(undefined),
+      );
 
       await expect(adapter.send(lead, checkpoint)).rejects.toBeInstanceOf(HttpLeadDeliveryException);
       expect(checkpoint.markDelivered).toHaveBeenCalledTimes(1);
-      expect(checkpoint.markDelivered).toHaveBeenCalledWith([ONE]);
+      // Отметка уходит в данные задачи в Redis: секреты из URL туда не попадают
+      const [marked] = checkpoint.markDelivered.mock.calls[0];
+      expect(marked).toHaveLength(1);
+      expect(JSON.stringify(marked)).not.toContain('s3cret');
     });
 
     it('does not write a checkpoint when every endpoint accepted the lead', async (): Promise<void> => {
