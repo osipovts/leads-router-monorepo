@@ -12,10 +12,6 @@ import {
   type SendLeadJob,
 } from '@leads-router/common';
 import { getQueueToken } from '@nestjs/bullmq';
-// e2e, gateway и router должны разделять один экземпляр Nest: две копии в одном процессе
-// сломали бы DI-контейнеры и instanceof-проверки, а подмена Logger.prototype не перехватила бы
-// логи приложений. pnpm схлопывает их при одинаковых версиях и peer-зависимостях — это проверяет
-// тест 'shares one Nest instance with gateway and router'
 import { type INestApplication, Logger, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
